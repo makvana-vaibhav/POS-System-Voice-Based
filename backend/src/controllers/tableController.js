@@ -164,10 +164,29 @@ const updateTableStatus = async (req, res) => {
   }
 };
 
+// DELETE /api/tables/:id
+const deleteTable = async (req, res) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM restaurant_tables WHERE id = $1 RETURNING *',
+      [req.params.id]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ success: false, message: 'Table not found' });
+    }
+
+    res.json({ success: true, message: 'Table deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 module.exports = {
   getAllTables,
   createTable,
   updateTable,
   getTableById,
   updateTableStatus,
+  deleteTable,
 };

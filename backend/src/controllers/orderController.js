@@ -63,9 +63,39 @@ const getOrderById = async (req, res) => {
 // POST /api/orders  { table_id, order_type, items: [{menu_item_id, quantity, note}] }
 const createOrder = async (req, res) => {
   const { table_id, order_type = 'dine-in', items = [], note } = req.body;
+
+  if (order_type === 'dine-in' && !table_id) {
+    return res.status(400).json({
+      success: false,
+      message: 'table_id is required for dine-in orders',
+    });
+  }
+
+  if (!Array.isArray(items) || !items.length) {
+    return res.status(400).json({
+      success: false,
+      message: 'At least one order item is required',
+    });
+  }
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    if (table_id) {
+      const tableResult = await client.query(
+        'SELECT * FROM restaurant_tables WHERE id = $1',
+        [table_id]
+      );
+
+      if (!tableResult.rows.length) {
+        throw new Error('Selected table not found');
+      }
+
+      if (tableResult.rows[0].status === 'occupied') {
+        throw new Error('Selected table is already occupied');
+      }
+    }
 
     // Create order
     const orderResult = await client.query(
@@ -76,6 +106,10 @@ const createOrder = async (req, res) => {
 
     // Add items
     for (const item of items) {
+      if (!item.menu_item_id || !item.quantity || Number(item.quantity) <= 0) {
+        throw new Error('Each order item must include menu_item_id and quantity > 0');
+      }
+
       const menuItem = await client.query('SELECT price FROM menu_items WHERE id = $1', [item.menu_item_id]);
       if (!menuItem.rows.length) throw new Error(`Menu item ${item.menu_item_id} not found`);
       await client.query(
@@ -94,7 +128,10 @@ const createOrder = async (req, res) => {
     res.status(201).json({ success: true, data: order });
   } catch (err) {
     await client.query('ROLLBACK');
-    res.status(500).json({ success: false, message: err.message });
+    const statusCode = err.message.includes('not found') || err.message.includes('occupied')
+      ? 400
+      : 500;
+    res.status(statusCode).json({ success: false, message: err.message });
   } finally {
     client.release();
   }

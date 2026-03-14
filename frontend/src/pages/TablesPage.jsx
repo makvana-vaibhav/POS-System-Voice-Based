@@ -93,6 +93,26 @@ function TablesPage() {
     }
   }
 
+  async function handleDeleteTable(tableId) {
+    const confirmDelete = window.confirm('Delete this table? This action cannot be undone.');
+    if (!confirmDelete) {
+      return;
+    }
+
+    try {
+      setError('');
+      await tableApi.deleteTable(tableId);
+
+      if (editingTableId === tableId) {
+        resetForm();
+      }
+
+      setTables((currentTables) => currentTables.filter((table) => table.id !== tableId));
+    } catch (err) {
+      setError(err.message || 'Failed to delete table');
+    }
+  }
+
   return (
     <main className="page-shell">
       <header className="page-header">
@@ -156,6 +176,7 @@ function TablesPage() {
               key={table.id}
               table={table}
               onEdit={handleStartEdit}
+              onDelete={handleDeleteTable}
               onStatusChange={handleStatusChange}
             />
           ))}

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import MenuPage from './pages/MenuPage';
 import DashboardPage from './pages/DashboardPage';
 import TablesPage from './pages/TablesPage';
+import OrdersPage from './pages/OrdersPage';
 
 function App() {
   const [activeView, setActiveView] = useState('menu');
@@ -31,7 +32,12 @@ function App() {
           >
             Admin - Tables
           </button>
-          <button disabled>Orders</button>
+          <button
+            className={activeView === 'orders' ? 'active' : ''}
+            onClick={() => setActiveView('orders')}
+          >
+            Waiter - Orders
+          </button>
           <button disabled>Kitchen</button>
           <button disabled>Billing</button>
           <button disabled>Voice</button>
@@ -41,6 +47,7 @@ function App() {
       {activeView === 'menu' ? <MenuPage /> : null}
       {activeView === 'dashboard' ? <DashboardPage /> : null}
       {activeView === 'tables' ? <TablesPage /> : null}
+      {activeView === 'orders' ? <OrdersPage /> : null}
     </div>
   );
 }

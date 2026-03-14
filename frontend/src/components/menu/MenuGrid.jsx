@@ -1,6 +1,6 @@
 import MenuItemCard from './MenuItemCard';
 
-function MenuGrid({ items, onDeleteItem, onEditItem }) {
+function MenuGrid({ items, onDeleteItem, onEditItem, onItemAction, actionLabel }) {
   if (!items.length) {
     return <p className="empty-state">No menu items found.</p>;
   }
@@ -11,8 +11,10 @@ function MenuGrid({ items, onDeleteItem, onEditItem }) {
         <MenuItemCard
           key={item.id}
           item={item}
-          onEdit={() => onEditItem(item)}
-          onDelete={() => onDeleteItem(item.id)}
+          onEdit={onEditItem ? () => onEditItem(item) : undefined}
+          onDelete={onDeleteItem ? () => onDeleteItem(item.id) : undefined}
+          onAction={onItemAction ? () => onItemAction(item) : undefined}
+          actionLabel={actionLabel}
         />
       ))}
     </section>

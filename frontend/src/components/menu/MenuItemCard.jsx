@@ -1,6 +1,6 @@
 import { formatCurrency } from '../../utils/formatCurrency';
 
-function MenuItemCard({ item, onEdit, onDelete }) {
+function MenuItemCard({ item, onEdit, onDelete, onAction, actionLabel = 'Action' }) {
   return (
     <article className="menu-item-card">
       <div className="menu-item-header">
@@ -11,17 +11,31 @@ function MenuItemCard({ item, onEdit, onDelete }) {
       <p className="menu-category">{item.category_name || 'Uncategorized'}</p>
       {item.description ? <p className="menu-description">{item.description}</p> : null}
 
-      <div className="menu-item-actions">
-        <small>ID: {item.id}</small>
-        <div className="action-buttons">
-          <button className="secondary-btn" onClick={onEdit}>
-            Edit
-          </button>
-          <button className="danger-btn" onClick={onDelete}>
-            Delete
+      {onAction ? (
+        <div className="menu-item-cta">
+          <button className="primary-btn" onClick={onAction}>
+            {actionLabel}
           </button>
         </div>
-      </div>
+      ) : null}
+
+      {onEdit || onDelete ? (
+        <div className="menu-item-actions">
+          <small>ID: {item.id}</small>
+          <div className="action-buttons">
+            {onEdit ? (
+              <button className="secondary-btn" onClick={onEdit}>
+                Edit
+              </button>
+            ) : null}
+            {onDelete ? (
+              <button className="danger-btn" onClick={onDelete}>
+                Delete
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </article>
   );
 }

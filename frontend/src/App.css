@@ -141,6 +141,16 @@
   cursor: pointer;
 }
 
+.primary-btn,
+.submit-order-btn {
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  color: #fff;
+  border-radius: 8px;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+
 .category-filter {
   display: flex;
   flex-wrap: wrap;
@@ -167,6 +177,131 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 14px;
+}
+
+.order-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 18px;
+  align-items: start;
+}
+
+.order-builder-panel {
+  min-width: 0;
+}
+
+.order-cart-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  position: sticky;
+  top: 20px;
+}
+
+.order-cart-card h2 {
+  margin: 0 0 12px;
+  color: #0f172a;
+  font-size: 20px;
+}
+
+.order-form-grid {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.order-form-grid label,
+.order-note-field {
+  display: grid;
+  gap: 6px;
+}
+
+.order-form-grid span,
+.order-note-field span {
+  color: #475569;
+  font-size: 14px;
+}
+
+.order-form-grid select,
+.order-note-field textarea {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.cart-items-list {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.cart-item-row {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.cart-item-row strong {
+  color: #0f172a;
+}
+
+.cart-item-row p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.cart-item-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.cart-item-controls button {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.cart-summary {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 12px;
+  margin-bottom: 12px;
+}
+
+.cart-summary div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cart-summary span {
+  color: #475569;
+}
+
+.cart-summary strong {
+  color: #0f172a;
+  font-size: 18px;
+}
+
+.menu-item-cta {
+  margin-top: 12px;
+}
+
+.success-text {
+  color: #047857;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
 }
 
 .tables-grid {
@@ -392,6 +527,14 @@
 
   .table-form {
     grid-template-columns: 1fr;
+  }
+
+  .order-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .order-cart-card {
+    position: static;
   }
 
   .stats-grid {

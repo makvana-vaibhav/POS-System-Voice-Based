@@ -49,6 +49,10 @@ export const tableApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  deleteTable: (id) =>
+    request(`/tables/${id}`, {
+      method: 'DELETE',
+    }),
   updateTable: (id, payload) =>
     request(`/tables/${id}`, {
       method: 'PUT',
@@ -58,5 +62,15 @@ export const tableApi = {
     request(`/tables/${id}/status`, {
       method: 'PUT',
       body: JSON.stringify({ status }),
+    }),
+};
+
+export const orderApi = {
+  getOrders: (status) =>
+    request(status ? `/orders?status=${encodeURIComponent(status)}` : '/orders'),
+  createOrder: (payload) =>
+    request('/orders', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     }),
 };

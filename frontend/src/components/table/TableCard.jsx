@@ -1,4 +1,4 @@
-function TableCard({ table, onEdit, onStatusChange }) {
+function TableCard({ table, onEdit, onDelete, onStatusChange }) {
   const statuses = ['available', 'occupied', 'reserved'];
 
   return (
@@ -10,9 +10,14 @@ function TableCard({ table, onEdit, onStatusChange }) {
         </div>
         <div className="table-card-meta">
           <span className={`status-badge status-${table.status}`}>{table.status}</span>
-          <button type="button" className="secondary-btn" onClick={() => onEdit(table)}>
-            Edit
-          </button>
+          <div className="action-buttons">
+            <button type="button" className="secondary-btn" onClick={() => onEdit(table)}>
+              Edit
+            </button>
+            <button type="button" className="danger-btn" onClick={() => onDelete(table.id)}>
+              Delete
+            </button>
+          </div>
         </div>
       </div>
 

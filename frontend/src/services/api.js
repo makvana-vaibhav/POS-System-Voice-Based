@@ -73,4 +73,22 @@ export const orderApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  updateOrderStatus: (id, status) =>
+    request(`/orders/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
+};
+
+export const paymentApi = {
+  getPaymentByOrderId: (orderId) => request(`/payments/order/${orderId}`),
+  generateBill: (orderId) =>
+    request(`/payments/order/${orderId}/bill`, {
+      method: 'POST',
+    }),
+  processPayment: (orderId, payment_method) =>
+    request(`/payments/order/${orderId}/pay`, {
+      method: 'POST',
+      body: JSON.stringify({ payment_method }),
+    }),
 };

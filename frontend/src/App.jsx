@@ -4,6 +4,8 @@ import MenuPage from './pages/MenuPage';
 import DashboardPage from './pages/DashboardPage';
 import TablesPage from './pages/TablesPage';
 import OrdersPage from './pages/OrdersPage';
+import KitchenPage from './pages/KitchenPage';
+import BillingPage from './pages/BillingPage';
 
 function App() {
   const [activeView, setActiveView] = useState('menu');
@@ -38,8 +40,18 @@ function App() {
           >
             Waiter - Orders
           </button>
-          <button disabled>Kitchen</button>
-          <button disabled>Billing</button>
+          <button
+            className={activeView === 'kitchen' ? 'active' : ''}
+            onClick={() => setActiveView('kitchen')}
+          >
+            Kitchen
+          </button>
+          <button
+            className={activeView === 'billing' ? 'active' : ''}
+            onClick={() => setActiveView('billing')}
+          >
+            Cashier - Billing
+          </button>
           <button disabled>Voice</button>
         </nav>
       </aside>
@@ -48,6 +60,8 @@ function App() {
       {activeView === 'dashboard' ? <DashboardPage /> : null}
       {activeView === 'tables' ? <TablesPage /> : null}
       {activeView === 'orders' ? <OrdersPage /> : null}
+      {activeView === 'kitchen' ? <KitchenPage /> : null}
+      {activeView === 'billing' ? <BillingPage /> : null}
     </div>
   );
 }

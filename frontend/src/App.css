@@ -51,6 +51,58 @@
   padding: 24px;
 }
 
+.login-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: #f1f5f9;
+  padding: 16px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.login-card h1 {
+  margin: 0;
+  color: #0f172a;
+}
+
+.login-card p {
+  margin: 8px 0 14px;
+  color: #64748b;
+}
+
+.login-form {
+  display: grid;
+  gap: 12px;
+}
+
+.login-form label {
+  display: grid;
+  gap: 6px;
+  color: #334155;
+  font-size: 14px;
+}
+
+.login-form input {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.login-hint {
+  display: block;
+  margin-top: 10px;
+  color: #64748b;
+}
+
 .page-header h1 {
   margin: 0;
   font-size: 28px;
@@ -90,6 +142,18 @@
   grid-template-columns: repeat(4, minmax(120px, 1fr));
 }
 
+.user-form {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(6, minmax(120px, 1fr));
+}
+
+.category-create-form {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(220px, 1fr) auto;
+}
+
 .menu-form input,
 .menu-form select,
 .menu-form button {
@@ -108,6 +172,15 @@
   font-size: 14px;
 }
 
+.user-form input,
+.user-form select,
+.user-form button {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
 .menu-form button {
   background: #2563eb;
   color: #fff;
@@ -122,6 +195,28 @@
   cursor: pointer;
 }
 
+.user-form button {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+  cursor: pointer;
+}
+
+.category-create-form input,
+.category-create-form button {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.category-create-form button {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+  cursor: pointer;
+}
+
 .menu-form button:disabled {
   opacity: 0.7;
   cursor: not-allowed;
@@ -130,6 +225,57 @@
 .table-form button:disabled {
   opacity: 0.7;
   cursor: not-allowed;
+}
+
+.user-form button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.users-table-wrap {
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.users-table th,
+.users-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  text-align: left;
+}
+
+.users-table th {
+  color: #334155;
+  background: #f8fafc;
+}
+
+.users-table td {
+  color: #0f172a;
+}
+
+.users-table select {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 14px;
 }
 
 .secondary-btn {
@@ -651,6 +797,71 @@
   margin-bottom: 16px;
 }
 
+.menu-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.menu-action-card {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 12px;
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-action-card.active {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px #2563eb inset;
+}
+
+.menu-action-card h3 {
+  margin: 0;
+  color: #0f172a;
+}
+
+.menu-action-card p {
+  margin: 8px 0 0;
+  color: #64748b;
+}
+
+.menu-revenue-card {
+  cursor: default;
+}
+
+.inline-form-row {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.inline-form-row select {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.menu-revenue-result {
+  margin-top: 10px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 10px;
+}
+
+.menu-revenue-result p {
+  margin: 6px 0;
+  color: #334155;
+}
+
+.muted-text {
+  color: #64748b;
+  font-size: 12px;
+}
+
 .stat-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
@@ -712,6 +923,18 @@
   }
 
   .table-form {
+    grid-template-columns: 1fr;
+  }
+
+  .user-form {
+    grid-template-columns: 1fr;
+  }
+
+  .category-create-form {
+    grid-template-columns: 1fr;
+  }
+
+  .menu-actions-grid {
     grid-template-columns: 1fr;
   }
 

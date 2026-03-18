@@ -10,6 +10,30 @@ const getAllCategories = async (req, res) => {
   }
 };
 
+// POST /api/menu/categories
+const createCategory = async (req, res) => {
+  const { name } = req.body;
+
+  if (!name || !name.trim()) {
+    return res.status(400).json({ success: false, message: 'Category name is required' });
+  }
+
+  try {
+    const result = await pool.query(
+      'INSERT INTO categories (name) VALUES ($1) RETURNING *',
+      [name.trim()]
+    );
+
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ success: false, message: 'Category already exists' });
+    }
+
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 // GET /api/menu/items
 const getAllMenuItems = async (req, res) => {
   try {
@@ -106,6 +130,7 @@ const deleteMenuItem = async (req, res) => {
 
 module.exports = {
   getAllCategories,
+  createCategory,
   getAllMenuItems,
   getMenuItemById,
   createMenuItem,

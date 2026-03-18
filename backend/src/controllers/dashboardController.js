@@ -73,4 +73,46 @@ const getTopItems = async (req, res) => {
   }
 };
 
-module.exports = { getDashboardSummary, getSalesByDate, getTopItems };
+// GET /api/dashboard/item-revenue?menuItemId=1
+const getItemRevenue = async (req, res) => {
+  const menuItemId = Number(req.query.menuItemId);
+
+  if (!menuItemId) {
+    return res.status(400).json({ success: false, message: 'menuItemId is required' });
+  }
+
+  try {
+    const itemResult = await pool.query('SELECT id, name FROM menu_items WHERE id = $1', [menuItemId]);
+    if (!itemResult.rows.length) {
+      return res.status(404).json({ success: false, message: 'Menu item not found' });
+    }
+
+    const revenueResult = await pool.query(
+      `SELECT
+        COALESCE(SUM(oi.quantity), 0) AS total_quantity,
+        COALESCE(SUM(oi.quantity * oi.unit_price), 0) AS gross_revenue,
+        COALESCE(COUNT(DISTINCT p.id), 0) AS paid_orders_count
+      FROM order_items oi
+      LEFT JOIN payments p
+        ON p.order_id = oi.order_id
+       AND p.payment_status = 'paid'
+      WHERE oi.menu_item_id = $1`,
+      [menuItemId]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        menu_item_id: itemResult.rows[0].id,
+        menu_item_name: itemResult.rows[0].name,
+        total_quantity: Number(revenueResult.rows[0].total_quantity || 0),
+        gross_revenue: Number(revenueResult.rows[0].gross_revenue || 0),
+        paid_orders_count: Number(revenueResult.rows[0].paid_orders_count || 0),
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { getDashboardSummary, getSalesByDate, getTopItems, getItemRevenue };

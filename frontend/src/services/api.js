@@ -1,25 +1,64 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+const TOKEN_KEY = 'pos_auth_token';
+
+export function getAuthToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setAuthToken(token) {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearAuthToken() {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
 async function request(path, options = {}) {
+  const token = getAuthToken();
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {}),
     },
     ...options,
   });
 
-  const data = await response.json();
+  const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
+    if (response.status === 401) {
+      clearAuthToken();
+    }
     throw new Error(data.message || 'Request failed');
   }
 
   return data;
 }
 
+export const authApi = {
+  login: async (username, password) => {
+    const response = await request('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+
+    setAuthToken(response.data.token);
+    return response;
+  },
+  me: () => request('/auth/me'),
+  logout: () => clearAuthToken(),
+};
+
 export const menuApi = {
   getCategories: () => request('/menu/categories'),
+  createCategory: (payload) =>
+    request('/menu/categories', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
   getItems: () => request('/menu/items'),
   createItem: (payload) =>
     request('/menu/items', {
@@ -40,6 +79,7 @@ export const menuApi = {
 export const dashboardApi = {
   getSummary: () => request('/dashboard/summary'),
   getTopItems: (limit = 5) => request(`/dashboard/top-items?limit=${limit}`),
+  getItemRevenue: (menuItemId) => request(`/dashboard/item-revenue?menuItemId=${menuItemId}`),
 };
 
 export const tableApi = {
@@ -90,5 +130,19 @@ export const paymentApi = {
     request(`/payments/order/${orderId}/pay`, {
       method: 'POST',
       body: JSON.stringify({ payment_method }),
+    }),
+};
+
+export const userApi = {
+  getUsers: () => request('/users'),
+  createUser: (payload) =>
+    request('/users', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  updateUser: (id, payload) =>
+    request(`/users/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
     }),
 };

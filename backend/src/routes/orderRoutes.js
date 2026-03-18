@@ -9,13 +9,16 @@ const {
   updateOrderStatus,
   cancelOrder,
 } = require('../controllers/orderController');
+const { allowRoles } = require('../middleware/authMiddleware');
 
-router.get('/', getAllOrders);
-router.get('/:id', getOrderById);
-router.post('/', createOrder);
-router.post('/:id/items', addItemToOrder);
-router.delete('/:id/items/:itemId', removeItemFromOrder);
-router.patch('/:id/status', updateOrderStatus);
-router.delete('/:id', cancelOrder);
+router.get('/', allowRoles('admin', 'waiter', 'cashier', 'kitchen'), getAllOrders);
+router.get('/:id', allowRoles('admin', 'waiter', 'cashier', 'kitchen'), getOrderById);
+
+router.post('/', allowRoles('admin', 'waiter', 'cashier'), createOrder);
+router.post('/:id/items', allowRoles('admin', 'waiter', 'cashier'), addItemToOrder);
+router.delete('/:id/items/:itemId', allowRoles('admin', 'waiter', 'cashier'), removeItemFromOrder);
+
+router.patch('/:id/status', allowRoles('admin', 'kitchen', 'cashier'), updateOrderStatus);
+router.delete('/:id', allowRoles('admin', 'waiter', 'cashier'), cancelOrder);
 
 module.exports = router;

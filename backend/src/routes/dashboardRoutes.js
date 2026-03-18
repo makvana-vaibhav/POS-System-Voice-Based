@@ -4,10 +4,13 @@ const {
   getDashboardSummary,
   getSalesByDate,
   getTopItems,
+  getItemRevenue,
 } = require('../controllers/dashboardController');
+const { allowRoles } = require('../middleware/authMiddleware');
 
-router.get('/summary', getDashboardSummary);
-router.get('/sales', getSalesByDate);
-router.get('/top-items', getTopItems);
+router.get('/summary', allowRoles('admin'), getDashboardSummary);
+router.get('/sales', allowRoles('admin'), getSalesByDate);
+router.get('/top-items', allowRoles('admin'), getTopItems);
+router.get('/item-revenue', allowRoles('admin'), getItemRevenue);
 
 module.exports = router;

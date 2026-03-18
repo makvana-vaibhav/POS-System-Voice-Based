@@ -9,6 +9,10 @@ const orderRoutes = require('./routes/orderRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const voiceRoutes = require('./routes/voiceRoutes');
+const authRoutes = require('./routes/authRoutes');
+const userRoutes = require('./routes/userRoutes');
+
+const { protect } = require('./middleware/authMiddleware');
 
 const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 
@@ -27,6 +31,10 @@ app.get('/api/health', (req, res) => {
 });
 
 // ── Routes ───────────────────────────────────────────────────
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+
+app.use('/api', protect);
 app.use('/api/tables', tableRoutes);
 app.use('/api/menu', menuRoutes);
 app.use('/api/orders', orderRoutes);

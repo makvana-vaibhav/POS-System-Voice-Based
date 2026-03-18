@@ -89,12 +89,29 @@ CREATE TABLE IF NOT EXISTS payments (
 );
 
 -- ============================================================
+-- USERS / AUTH
+-- ============================================================
+CREATE TABLE IF NOT EXISTS users (
+  id            SERIAL PRIMARY KEY,
+  full_name     VARCHAR(150) NOT NULL,
+  username      VARCHAR(80) NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  role          VARCHAR(20) NOT NULL DEFAULT 'waiter'
+                 CHECK (role IN ('admin', 'cashier', 'waiter', 'kitchen')),
+  is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at    TIMESTAMP DEFAULT NOW(),
+  updated_at    TIMESTAMP DEFAULT NOW()
+);
+
+-- ============================================================
 -- INDEXES for performance
 -- ============================================================
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(payment_status);
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active);
 
 -- ============================================================
 -- SEED: Default restaurant tables (10 tables)
@@ -110,3 +127,19 @@ ON CONFLICT (table_number) DO NOTHING;
 INSERT INTO categories (name) VALUES
   ('Starters'), ('Main Course'), ('Beverages'), ('Desserts'), ('Sides')
 ON CONFLICT (name) DO NOTHING;
+
+-- ============================================================
+-- SEED: Default admin user
+-- username: admin
+-- password: admin123
+-- IMPORTANT: Change this password immediately after first login.
+-- ============================================================
+INSERT INTO users (full_name, username, password_hash, role, is_active)
+VALUES (
+  'System Admin',
+  'admin',
+  '$2a$10$qJBKhkAvs63c5UWEh5ChS.NsHLC83I0VnKyNKCSLt5vhxXawfy98O',
+  'admin',
+  TRUE
+)
+ON CONFLICT (username) DO NOTHING;

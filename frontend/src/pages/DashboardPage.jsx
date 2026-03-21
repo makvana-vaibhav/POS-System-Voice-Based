@@ -260,7 +260,7 @@ function DashboardPage({ onNavigate, viewMode = 'dashboard' }) {
             ))}
           </section>
 
-          <section className="analytics-kpi-grid">
+          <section className="analytics-kpi-grid dashboard-kpi-grid">
             <article className="dashboard-kpi-card">
               <p>Revenue Today</p>
               <h3>{formatCurrency(summary?.revenue_today ?? 0)}</h3>

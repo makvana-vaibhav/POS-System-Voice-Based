@@ -7,20 +7,11 @@ function TablesPage({ onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [editingTableId, setEditingTableId] = useState(null);
-  const [formData, setFormData] = useState({
-    table_number: '',
-    capacity: '',
-    status: 'available',
-  });
+  const [totalTables, setTotalTables] = useState(10);
+  const [tempTableCount, setTempTableCount] = useState(10);
 
   function resetForm() {
-    setFormData({
-      table_number: '',
-      capacity: '',
-      status: 'available',
-    });
-    setEditingTableId(null);
+    setTempTableCount(tables.length);
   }
 
   async function loadTables() {
@@ -40,43 +31,40 @@ function TablesPage({ onNavigate }) {
     loadTables();
   }, []);
 
-  async function handleSubmitTable(event) {
-    event.preventDefault();
+  async function handleUpdateTableCount() {
     try {
-      setSubmitting(true);
       setError('');
+      const targetCount = Number(tempTableCount);
+      const currentCount = tables.length;
 
-      const payload = {
-        table_number: Number(formData.table_number),
-        capacity: Number(formData.capacity),
-        status: formData.status,
-      };
-
-      if (editingTableId) {
-        await tableApi.updateTable(editingTableId, payload);
-      } else {
-        await tableApi.createTable(payload);
+      if (targetCount < 1) {
+        setError('Must have at least 1 table.');
+        return;
       }
 
-      resetForm();
+      setSubmitting(true);
 
+      if (targetCount > currentCount) {
+        for (let i = currentCount + 1; i <= targetCount; i++) {
+          await tableApi.createTable({
+            table_number: i,
+            status: 'available',
+          });
+        }
+      } else if (targetCount < currentCount) {
+        const sortedTables = [...tables].sort((a, b) => b.table_number - a.table_number);
+        for (let i = 0; i < currentCount - targetCount; i++) {
+          await tableApi.deleteTable(sortedTables[i].id);
+        }
+      }
+
+      setTotalTables(targetCount);
       await loadTables();
     } catch (err) {
-      setError(err.message || 'Failed to save table');
+      setError(err.message || 'Failed to update tables');
     } finally {
       setSubmitting(false);
     }
-  }
-
-  function handleStartEdit(table) {
-    setError('');
-    setEditingTableId(table.id);
-    setFormData({
-      table_number: String(table.table_number),
-      capacity: String(table.capacity),
-      status: table.status,
-    });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async function handleStatusChange(tableId, status) {
@@ -93,26 +81,6 @@ function TablesPage({ onNavigate }) {
     }
   }
 
-  async function handleDeleteTable(tableId) {
-    const confirmDelete = window.confirm('Delete this table? This action cannot be undone.');
-    if (!confirmDelete) {
-      return;
-    }
-
-    try {
-      setError('');
-      await tableApi.deleteTable(tableId);
-
-      if (editingTableId === tableId) {
-        resetForm();
-      }
-
-      setTables((currentTables) => currentTables.filter((table) => table.id !== tableId));
-    } catch (err) {
-      setError(err.message || 'Failed to delete table');
-    }
-  }
-
   function handleOpenOrderForTable(table) {
     localStorage.setItem('pos_selected_table_id', String(table.id));
     onNavigate?.('orders');
@@ -121,53 +89,33 @@ function TablesPage({ onNavigate }) {
   return (
     <main className="page-shell">
       <header className="page-header">
-        <h1>Admin Panel - Table Management (Step 4)</h1>
-        <p>Create, edit, and control table status for waiter and cashier flows.</p>
+        <h1>Admin Panel - Table Management</h1>
+        <p>Set total number of tables. Tables will be created or deleted automatically.</p>
       </header>
 
       <section className="admin-form-card">
-        <h2>{editingTableId ? `Edit Table #${editingTableId}` : 'Add New Table'}</h2>
-        <form className="table-form" onSubmit={handleSubmitTable}>
-          <input
-            type="number"
-            min="1"
-            placeholder="Table number"
-            value={formData.table_number}
-            onChange={(event) =>
-              setFormData((prev) => ({ ...prev, table_number: event.target.value }))
-            }
-            required
-          />
-
-          <input
-            type="number"
-            min="1"
-            placeholder="Capacity"
-            value={formData.capacity}
-            onChange={(event) =>
-              setFormData((prev) => ({ ...prev, capacity: event.target.value }))
-            }
-            required
-          />
-
-          <select
-            value={formData.status}
-            onChange={(event) => setFormData((prev) => ({ ...prev, status: event.target.value }))}
-          >
-            <option value="available">available</option>
-            <option value="occupied">occupied</option>
-            <option value="reserved">reserved</option>
-          </select>
-
+        <h2>Set Total Tables</h2>
+        <form
+          className="table-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleUpdateTableCount();
+          }}
+        >
+          <label>
+            <span>Total Tables</span>
+            <input
+              type="number"
+              min="1"
+              max="100"
+              value={tempTableCount}
+              onChange={(event) => setTempTableCount(event.target.value)}
+              required
+            />
+          </label>
           <button type="submit" disabled={submitting}>
-            {submitting ? 'Saving...' : editingTableId ? 'Update Table' : 'Add Table'}
+            {submitting ? 'Updating...' : 'Update'}
           </button>
-
-          {editingTableId ? (
-            <button type="button" className="secondary-btn" onClick={resetForm}>
-              Cancel Edit
-            </button>
-          ) : null}
         </form>
       </section>
 
@@ -175,18 +123,19 @@ function TablesPage({ onNavigate }) {
       {error ? <p className="error-text">{error}</p> : null}
 
       {!loading ? (
-        <section className="tables-grid">
-          {tables.map((table) => (
-            <TableCard
-              key={table.id}
-              table={table}
-              onEdit={handleStartEdit}
-              onDelete={handleDeleteTable}
-              onStatusChange={handleStatusChange}
-              onOpenOrder={handleOpenOrderForTable}
-            />
-          ))}
-        </section>
+        <>
+          <p className="info-text">Total tables: {tables.length}</p>
+          <section className="tables-grid">
+            {tables.map((table) => (
+              <TableCard
+                key={table.id}
+                table={table}
+                onStatusChange={handleStatusChange}
+                onOpenOrder={handleOpenOrderForTable}
+              />
+            ))}
+          </section>
+        </>
       ) : null}
     </main>
   );

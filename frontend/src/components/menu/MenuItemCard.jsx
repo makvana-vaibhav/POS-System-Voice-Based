@@ -163,17 +163,16 @@ function MenuItemCard({
 
       {onEdit || onDelete ? (
         <div className="menu-item-actions">
-          <small>ID: {item.id}</small>
           <details className="inline-action-menu" onClick={(event) => event.stopPropagation()}>
-            <summary>⋮</summary>
+            <summary>⋯</summary>
             <div className="inline-action-menu-items">
               {onEdit ? (
-                <button className="secondary-btn" onClick={onEdit}>
+                <button className="secondary-btn" onClick={() => onEdit(item)}>
                   Edit
                 </button>
               ) : null}
               {onDelete ? (
-                <button className="danger-btn" onClick={onDelete}>
+                <button className="danger-btn" onClick={() => onDelete(item.id)}>
                   Delete
                 </button>
               ) : null}

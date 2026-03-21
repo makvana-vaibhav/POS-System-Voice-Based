@@ -47,6 +47,13 @@ function KitchenOrderCard({ order, onUpdateStatus, updatingOrderId }) {
         ))}
       </ul>
 
+      {order.note ? (
+        <div className="kds-note-section">
+          <strong>Order Note:</strong>
+          <p>{order.note}</p>
+        </div>
+      ) : null}
+
       <div className="kds-card-footer">
         {nextStatus ? (
           <button

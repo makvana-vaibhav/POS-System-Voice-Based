@@ -12,6 +12,7 @@ function OrdersPage() {
   const [orderType, setOrderType] = useState('dine-in');
   const [note, setNote] = useState('');
   const [cartItems, setCartItems] = useState([]);
+  const [existingOrderItems, setExistingOrderItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -44,9 +45,41 @@ function OrdersPage() {
     }
   }
 
+  async function loadExistingOrderForTable(tableId) {
+    if (!tableId) {
+      setExistingOrderItems([]);
+      return;
+    }
+
+    try {
+      setError('');
+      const response = await orderApi.getOrders();
+      const orders = response.data || [];
+      const tableOrders = orders.filter(
+        (order) =>
+          Number(order.table_id) === Number(tableId) &&
+          order.status !== 'served' &&
+          order.status !== 'cancelled'
+      );
+
+      if (tableOrders.length > 0) {
+        const currentOrder = tableOrders[0];
+        setExistingOrderItems(currentOrder.items || []);
+      } else {
+        setExistingOrderItems([]);
+      }
+    } catch (err) {
+      setExistingOrderItems([]);
+    }
+  }
+
   useEffect(() => {
     loadOrderData();
   }, []);
+
+  useEffect(() => {
+    loadExistingOrderForTable(selectedTableId);
+  }, [selectedTableId]);
 
   const selectableTables = useMemo(() => tables, [tables]);
 
@@ -179,7 +212,7 @@ function OrdersPage() {
                   <option value="">Choose table</option>
                   {selectableTables.map((table) => (
                     <option key={table.id} value={table.id}>
-                      Table {table.table_number} ({table.capacity} seats)
+                      Table {table.table_number}
                     </option>
                   ))}
                 </select>
@@ -230,6 +263,7 @@ function OrdersPage() {
           note={note}
           cartItems={cartItems}
           subtotal={subtotal}
+          existingOrderItems={existingOrderItems}
           onNoteChange={setNote}
           onIncrease={(itemId) => updateQuantity(itemId, 1)}
           onDecrease={(itemId) => updateQuantity(itemId, -1)}

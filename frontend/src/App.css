@@ -854,6 +854,27 @@
   color: #0f172a;
 }
 
+.kds-note-section {
+  margin-top: 12px;
+  padding: 10px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+}
+
+.kds-note-section strong {
+  color: #92400e;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.kds-note-section p {
+  margin: 0;
+  color: #78350f;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
 .kds-card-footer {
   border-top: 1px solid #e2e8f0;
   margin-top: 12px;

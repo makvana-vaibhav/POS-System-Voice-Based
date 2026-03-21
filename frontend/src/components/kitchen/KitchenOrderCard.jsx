@@ -2,8 +2,6 @@ function KitchenOrderCard({
   order,
   onUpdateStatus,
   updatingOrderId,
-  ticketSequence = 1,
-  displayOrderId,
 }) {
   const statusFlow = ['pending', 'preparing', 'ready', 'served'];
   const currentStatusIndex = statusFlow.indexOf(order.status);
@@ -35,10 +33,7 @@ function KitchenOrderCard({
     <article className="kds-card">
       <div className="kds-card-header">
         <div>
-          <h3>
-            Order #{displayOrderId || order.id}
-            {ticketSequence > 1 ? ` (${ticketSequence})` : ''}
-          </h3>
+          <h3>Order #{order.id}</h3>
           <p>{order.table_number ? `Table ${order.table_number}` : 'Takeaway'}</p>
           <p className="muted-text">⏱ {getElapsedTime(order.created_at)} ago</p>
         </div>

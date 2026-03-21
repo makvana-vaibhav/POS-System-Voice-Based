@@ -79,8 +79,7 @@ const getActiveBills = async (req, res) => {
       LEFT JOIN order_items oi ON oi.order_id = o.id
       LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
       LEFT JOIN payments p ON p.order_id = o.id
-      WHERE o.status <> 'cancelled'
-        AND COALESCE(p.payment_status, 'pending') <> 'paid'
+      WHERE o.status NOT IN ('cancelled', 'served')
       GROUP BY o.id, rt.table_number, p.id
       ORDER BY o.created_at DESC`
     );
@@ -200,33 +199,6 @@ const processPayment = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Bill not found or already paid' });
     }
 
-    const orderResult = await client.query(
-      `UPDATE orders
-       SET status = 'served', updated_at = NOW()
-       WHERE id = $1
-       RETURNING table_id`,
-      [orderId]
-    );
-
-    if (orderResult.rows.length && orderResult.rows[0].table_id) {
-      const tableId = orderResult.rows[0].table_id;
-      const unpaidOrders = await client.query(
-        `SELECT 1
-         FROM orders o
-         LEFT JOIN payments p ON p.order_id = o.id
-         WHERE o.table_id = $1
-           AND o.order_type = 'dine-in'
-           AND o.status <> 'cancelled'
-           AND COALESCE(p.payment_status, 'pending') <> 'paid'
-         LIMIT 1`,
-        [tableId]
-      );
-
-      if (!unpaidOrders.rows.length) {
-        await client.query("UPDATE restaurant_tables SET status = 'available' WHERE id = $1", [tableId]);
-      }
-    }
-
     await client.query('COMMIT');
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
@@ -238,4 +210,75 @@ const processPayment = async (req, res) => {
   }
 };
 
-module.exports = { getPaymentByOrderId, getActiveBills, generateBill, processPayment };
+// POST /api/payments/order/:orderId/complete
+const completePayment = async (req, res) => {
+  const { orderId } = req.params;
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const paidBillResult = await client.query(
+      `SELECT payment_status
+       FROM payments
+       WHERE order_id = $1
+       LIMIT 1`,
+      [orderId]
+    );
+
+    if (!paidBillResult.rows.length || paidBillResult.rows[0].payment_status !== 'paid') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: 'Please mark this bill as paid before completing',
+      });
+    }
+
+    const orderResult = await client.query(
+      `UPDATE orders
+       SET status = 'served', updated_at = NOW()
+       WHERE id = $1
+         AND status <> 'cancelled'
+       RETURNING id, table_id`,
+      [orderId]
+    );
+
+    if (!orderResult.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    const tableId = orderResult.rows[0].table_id;
+    if (tableId) {
+      const openOrders = await client.query(
+        `SELECT 1
+         FROM orders
+         WHERE table_id = $1
+           AND order_type = 'dine-in'
+           AND status NOT IN ('served', 'cancelled')
+         LIMIT 1`,
+        [tableId]
+      );
+
+      if (!openOrders.rows.length) {
+        await client.query("UPDATE restaurant_tables SET status = 'available' WHERE id = $1", [tableId]);
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true, data: orderResult.rows[0] });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ success: false, message: err.message });
+  } finally {
+    client.release();
+  }
+};
+
+module.exports = {
+  getPaymentByOrderId,
+  getActiveBills,
+  generateBill,
+  processPayment,
+  completePayment,
+};

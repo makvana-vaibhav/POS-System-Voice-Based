@@ -5,13 +5,16 @@ function BillingOrderCard({
   bill,
   gstRate,
   onPay,
+  onComplete,
   onPrint,
   payingOrderId,
+  completingOrderId,
   printingOrderId,
 }) {
   const [paymentMethod, setPaymentMethod] = useState('cash');
 
   const isPaying = payingOrderId === bill.id;
+  const isCompleting = completingOrderId === bill.id;
   const isPrinting = printingOrderId === bill.id;
 
   return (
@@ -19,7 +22,7 @@ function BillingOrderCard({
       <div className="billing-card-header">
         <div>
           <h3>{bill.title}</h3>
-          <p>{bill.subtitle}</p>
+          {!bill.table_number ? <p>{bill.subtitle}</p> : null}
           {bill.orderRefs?.length ? <p className="muted-text">Orders: {bill.orderRefs.join(', ')}</p> : null}
         </div>
         <span className={`status-badge status-${bill.status}`}>{bill.status}</span>
@@ -55,7 +58,7 @@ function BillingOrderCard({
         <select
           value={paymentMethod}
           onChange={(event) => setPaymentMethod(event.target.value)}
-          disabled={isPaying}
+          disabled={isPaying || isCompleting || bill.allPaid}
         >
           <option value="cash">cash</option>
           <option value="card">card</option>
@@ -63,14 +66,25 @@ function BillingOrderCard({
           <option value="other">other</option>
         </select>
 
-        <button
-          type="button"
-          className="primary-btn"
-          onClick={() => onPay(bill.id, paymentMethod)}
-          disabled={isPaying}
-        >
-          {isPaying ? 'Processing...' : 'Mark Paid'}
-        </button>
+        {!bill.allPaid ? (
+          <button
+            type="button"
+            className="primary-btn"
+            onClick={() => onPay(bill.id, paymentMethod)}
+            disabled={isPaying || isCompleting}
+          >
+            {isPaying ? 'Processing...' : 'Mark Paid'}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="primary-btn"
+            onClick={() => onComplete(bill.id)}
+            disabled={isCompleting || isPaying}
+          >
+            {isCompleting ? 'Completing...' : 'Complete'}
+          </button>
+        )}
 
         <button
           type="button"

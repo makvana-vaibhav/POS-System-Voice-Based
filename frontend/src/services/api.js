@@ -164,6 +164,10 @@ export const paymentApi = {
           : { payment_method }
       ),
     }),
+  completePayment: (orderId) =>
+    request(`/payments/order/${orderId}/complete`, {
+      method: 'POST',
+    }),
 };
 
 export const userApi = {

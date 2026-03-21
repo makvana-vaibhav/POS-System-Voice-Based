@@ -52,53 +52,6 @@ function KitchenPage() {
     });
   }, [orders, selectedStatus]);
 
-  const ticketSequenceByOrderId = useMemo(() => {
-    const sortedOrders = [...orders].sort((a, b) => {
-      const aTime = new Date(a.created_at).getTime();
-      const bTime = new Date(b.created_at).getTime();
-      if (aTime === bTime) {
-        return Number(a.id) - Number(b.id);
-      }
-      return aTime - bTime;
-    });
-
-    const sequenceByTable = new Map();
-    const sequenceByOrderId = {};
-
-    sortedOrders.forEach((order) => {
-      const tableKey = order.table_id ? `table-${order.table_id}` : `takeaway-${order.id}`;
-      const nextSequence = (sequenceByTable.get(tableKey) || 0) + 1;
-      sequenceByTable.set(tableKey, nextSequence);
-      sequenceByOrderId[order.id] = nextSequence;
-    });
-
-    return sequenceByOrderId;
-  }, [orders]);
-
-  const baseOrderIdByOrderId = useMemo(() => {
-    const sortedOrders = [...orders].sort((a, b) => {
-      const aTime = new Date(a.created_at).getTime();
-      const bTime = new Date(b.created_at).getTime();
-      if (aTime === bTime) {
-        return Number(a.id) - Number(b.id);
-      }
-      return aTime - bTime;
-    });
-
-    const firstOrderByTable = new Map();
-    const baseByOrderId = {};
-
-    sortedOrders.forEach((order) => {
-      const tableKey = order.table_id ? `table-${order.table_id}` : `takeaway-${order.id}`;
-      if (!firstOrderByTable.has(tableKey)) {
-        firstOrderByTable.set(tableKey, order.id);
-      }
-      baseByOrderId[order.id] = firstOrderByTable.get(tableKey);
-    });
-
-    return baseByOrderId;
-  }, [orders]);
-
   async function handleUpdateStatus(orderId, status) {
     try {
       setUpdatingOrderId(orderId);
@@ -164,8 +117,6 @@ function KitchenPage() {
                 order={order}
                 onUpdateStatus={handleUpdateStatus}
                 updatingOrderId={updatingOrderId}
-                ticketSequence={ticketSequenceByOrderId[order.id] || 1}
-                displayOrderId={baseOrderIdByOrderId[order.id] || order.id}
               />
             ))
           ) : (

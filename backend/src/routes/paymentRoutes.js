@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   generateBill,
   processPayment,
+  completePayment,
   getPaymentByOrderId,
   getActiveBills,
 } = require('../controllers/paymentController');
@@ -12,5 +13,6 @@ router.get('/order/:orderId', allowRoles('admin', 'cashier'), getPaymentByOrderI
 router.get('/active-bills', allowRoles('admin', 'cashier'), getActiveBills);
 router.post('/order/:orderId/bill', allowRoles('admin', 'cashier'), generateBill);
 router.post('/order/:orderId/pay', allowRoles('admin', 'cashier'), processPayment);
+router.post('/order/:orderId/complete', allowRoles('admin', 'cashier'), completePayment);
 
 module.exports = router;

@@ -9,6 +9,7 @@ function BillingPage() {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [payingOrderId, setPayingOrderId] = useState(null);
+  const [completingOrderId, setCompletingOrderId] = useState(null);
   const [printingOrderId, setPrintingOrderId] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [gstRate, setGstRate] = useState(18);
@@ -126,6 +127,7 @@ function BillingPage() {
         ...bill,
         orderRefs: bill.orders.map((row) => `#${row.id}`),
         items,
+        allPaid: bill.orders.every((order) => order.payment?.payment_status === 'paid'),
         subtotal,
         taxAmount,
         totalAmount,
@@ -165,20 +167,52 @@ function BillingPage() {
       setSuccessMessage('');
 
       for (const order of bill.orders) {
+        if (order.payment?.payment_status === 'paid') {
+          continue;
+        }
         await paymentApi.generateBill(order.id, Number(gstRate));
         await paymentApi.processPayment(order.id, paymentMethod, Number(gstRate));
       }
 
       setSuccessMessage(
         bill.table_number
-          ? `Payment completed for Table ${bill.table_number}.`
-          : `Payment completed for ${bill.title}.`
+          ? `Marked paid for Table ${bill.table_number}. Print and click Complete.`
+          : `Marked paid for ${bill.title}. Print and click Complete.`
       );
       await loadBillingData();
     } catch (err) {
       setError(err.message || 'Failed to process payment');
     } finally {
       setPayingOrderId(null);
+    }
+  }
+
+  async function handleCompleteBill(billId) {
+    try {
+      const bill = bills.find((row) => row.id === billId);
+      if (!bill) {
+        setError('Selected bill not found. Please refresh.');
+        return;
+      }
+
+      setCompletingOrderId(billId);
+      setError('');
+      setSuccessMessage('');
+
+      for (const order of bill.orders) {
+        await paymentApi.completePayment(order.id);
+      }
+
+      setSuccessMessage(
+        bill.table_number
+          ? `Completed Table ${bill.table_number} bill.`
+          : `Completed ${bill.title}.`
+      );
+      await loadBillingData();
+    } catch (err) {
+      setError(err.message || 'Failed to complete bill');
+    } finally {
+      setCompletingOrderId(null);
     }
   }
 
@@ -287,8 +321,10 @@ function BillingPage() {
                 bill={bill}
                 gstRate={Number(gstRate || 0)}
                 onPay={handleMarkPaid}
+                onComplete={handleCompleteBill}
                 onPrint={handlePrintBill}
                 payingOrderId={payingOrderId}
+                completingOrderId={completingOrderId}
                 printingOrderId={printingOrderId}
               />
             ))

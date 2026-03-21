@@ -2,6 +2,7 @@ import './App.css';
 import { useEffect, useMemo, useState } from 'react';
 import MenuPage from './pages/MenuPage';
 import DashboardPage from './pages/DashboardPage';
+import AnalyticsPage from './pages/AnalyticsPage';
 import TablesPage from './pages/TablesPage';
 import OrdersPage from './pages/OrdersPage';
 import KitchenPage from './pages/KitchenPage';
@@ -144,9 +145,7 @@ function App() {
       {activeView === 'dashboard' ? (
         <DashboardPage onNavigate={setActiveView} viewMode="dashboard" />
       ) : null}
-      {activeView === 'analytics' ? (
-        <DashboardPage onNavigate={setActiveView} viewMode="analytics" />
-      ) : null}
+      {activeView === 'analytics' ? <AnalyticsPage /> : null}
       {activeView === 'menu' ? <MenuPage /> : null}
       {activeView === 'tables' ? <TablesPage onNavigate={setActiveView} /> : null}
       {activeView === 'users' ? <UsersPage /> : null}

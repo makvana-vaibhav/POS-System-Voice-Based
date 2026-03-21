@@ -84,7 +84,20 @@ export const menuApi = {
 
 export const dashboardApi = {
   getSummary: () => request('/dashboard/summary'),
-  getTopItems: (limit = 5) => request(`/dashboard/top-items?limit=${limit}`),
+  getTopItems: (limitOrOptions = 5) => {
+    const query = new URLSearchParams();
+
+    if (typeof limitOrOptions === 'number') {
+      query.set('limit', String(limitOrOptions));
+    } else {
+      const { limit = 5, from, to } = limitOrOptions || {};
+      query.set('limit', String(limit));
+      if (from) query.set('from', from);
+      if (to) query.set('to', to);
+    }
+
+    return request(`/dashboard/top-items?${query.toString()}`);
+  },
   getItemRevenue: (menuItemId) => request(`/dashboard/item-revenue?menuItemId=${menuItemId}`),
   getAnalytics: ({ from, to } = {}) => {
     const query = new URLSearchParams();

@@ -673,6 +673,12 @@
   margin-bottom: 14px;
 }
 
+.analytics-export-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: 10px 0 14px;
+}
+
 .analytics-filter-row label {
   display: grid;
   gap: 6px;

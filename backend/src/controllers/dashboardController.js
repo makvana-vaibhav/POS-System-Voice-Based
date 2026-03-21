@@ -55,6 +55,7 @@ const getSalesByDate = async (req, res) => {
 // GET /api/dashboard/top-items?limit=5
 const getTopItems = async (req, res) => {
   const limit = parseInt(req.query.limit) || 5;
+  const { from, to } = req.query;
   try {
     const result = await pool.query(
       `SELECT mi.name, SUM(oi.quantity) AS total_ordered
@@ -62,10 +63,12 @@ const getTopItems = async (req, res) => {
        JOIN menu_items mi ON oi.menu_item_id = mi.id
        JOIN orders o ON oi.order_id = o.id
        WHERE o.status != 'cancelled'
+         AND ($2::date IS NULL OR DATE(o.created_at) >= $2::date)
+         AND ($3::date IS NULL OR DATE(o.created_at) <= $3::date)
        GROUP BY mi.name
        ORDER BY total_ordered DESC
        LIMIT $1`,
-      [limit]
+      [limit, from || null, to || null]
     );
     res.json({ success: true, data: result.rows });
   } catch (err) {

@@ -12,8 +12,8 @@ function escapeHtml(value) {
 export function printReceipt({
   order,
   payment,
+  includeTax = true,
   restaurantName = 'Restaurant POS',
-  restaurantAddress = 'Main Branch',
   restaurantPhone = '+91-0000000000',
 }) {
   if (!order || !payment) {
@@ -96,7 +96,6 @@ export function printReceipt({
         <section class="receipt">
           <div class="center">
             <h1>${escapeHtml(restaurantName)}</h1>
-            <p class="muted">${escapeHtml(restaurantAddress)}</p>
             <p class="muted">${escapeHtml(restaurantPhone)}</p>
           </div>
 
@@ -105,7 +104,6 @@ export function printReceipt({
           <p><strong>Bill #:</strong> ${order.id}</p>
           <p><strong>Order Type:</strong> ${escapeHtml(order.order_type || 'dine-in')}</p>
           <p><strong>Table:</strong> ${order.table_number ? `Table ${order.table_number}` : 'Takeaway'}</p>
-          <p><strong>Status:</strong> ${escapeHtml(payment.payment_status || 'pending')}</p>
           <p><strong>Date:</strong> ${escapeHtml(printedAt)}</p>
 
           <div class="line"></div>
@@ -126,7 +124,7 @@ export function printReceipt({
 
           <div class="totals">
             <div><span>Subtotal</span><strong>${escapeHtml(formatCurrency(payment.subtotal))}</strong></div>
-            <div><span>Tax (${escapeHtml(payment.tax_rate)}%)</span><strong>${escapeHtml(formatCurrency(payment.tax_amount))}</strong></div>
+            ${includeTax ? `<div><span>Tax (${escapeHtml(payment.tax_rate)}%)</span><strong>${escapeHtml(formatCurrency(payment.tax_amount))}</strong></div>` : ''}
             <div class="grand"><span>Grand Total</span><span>${escapeHtml(formatCurrency(payment.total_amount))}</span></div>
             <div><span>Payment Method</span><span>${escapeHtml(payment.payment_method || 'cash')}</span></div>
           </div>

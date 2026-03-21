@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import BillingOrderCard from '../components/billing/BillingOrderCard';
 import { paymentApi } from '../services/api';
 import { printReceipt } from '../utils/printReceipt';
+import { loadAppSettings } from '../utils/appSettings';
 
 function BillingPage() {
   const [orders, setOrders] = useState([]);
@@ -12,7 +13,7 @@ function BillingPage() {
   const [completingOrderId, setCompletingOrderId] = useState(null);
   const [printingOrderId, setPrintingOrderId] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
-  const [gstRate, setGstRate] = useState(18);
+  const [appSettings, setAppSettings] = useState(loadAppSettings());
 
   async function loadBillingData() {
     try {
@@ -31,8 +32,12 @@ function BillingPage() {
   }
 
   useEffect(() => {
+    setAppSettings(loadAppSettings());
     loadBillingData();
   }, []);
+
+  const gstEnabled = Boolean(appSettings.gstEnabled);
+  const gstRate = Number(appSettings.gstRate || 0);
 
   const bills = useMemo(() => {
     const statusPriority = {
@@ -120,14 +125,26 @@ function BillingPage() {
 
       const items = Object.values(mergedItems);
       const subtotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-      const taxAmount = Number(((subtotal * Number(gstRate || 0)) / 100).toFixed(2));
+      const taxAmount = gstEnabled
+        ? Number(((subtotal * Number(gstRate || 0)) / 100).toFixed(2))
+        : 0;
       const totalAmount = Number((subtotal + taxAmount).toFixed(2));
+      const paymentMethods = bill.orders
+        .map((order) => order.payment?.payment_method)
+        .filter(Boolean);
+      const uniqueMethods = [...new Set(paymentMethods)];
 
       return {
         ...bill,
         orderRefs: bill.orders.map((row) => `#${row.id}`),
         items,
         allPaid: bill.orders.every((order) => order.payment?.payment_status === 'paid'),
+        paymentMethod:
+          uniqueMethods.length === 0
+            ? ''
+            : uniqueMethods.length === 1
+            ? uniqueMethods[0]
+            : 'mixed',
         subtotal,
         taxAmount,
         totalAmount,
@@ -152,7 +169,7 @@ function BillingPage() {
       }
       return aTime - bTime;
     });
-  }, [orders, statusFilter, gstRate]);
+  }, [orders, statusFilter, gstEnabled, gstRate]);
 
   async function handleMarkPaid(billId, paymentMethod) {
     try {
@@ -170,8 +187,8 @@ function BillingPage() {
         if (order.payment?.payment_status === 'paid') {
           continue;
         }
-        await paymentApi.generateBill(order.id, Number(gstRate));
-        await paymentApi.processPayment(order.id, paymentMethod, Number(gstRate));
+        await paymentApi.generateBill(order.id, gstEnabled ? Number(gstRate) : 0);
+        await paymentApi.processPayment(order.id, paymentMethod, gstEnabled ? Number(gstRate) : 0);
       }
 
       setSuccessMessage(
@@ -223,22 +240,22 @@ function BillingPage() {
 
       printReceipt({
         order: {
-          id: bill.table_number ? `T${bill.table_number}` : bill.orderRefs.join(', '),
+          id: bill.orderRefs.join(', '),
           order_type: bill.order_type,
           table_number: bill.table_number,
           items: bill.items,
         },
         payment: {
           subtotal: bill.subtotal,
-          tax_rate: Number(gstRate),
+          tax_rate: gstEnabled ? gstRate : null,
           tax_amount: bill.taxAmount,
           total_amount: bill.totalAmount,
-          payment_status: 'pending',
-          payment_method: '-',
+          payment_status: bill.allPaid ? 'paid' : '',
+          payment_method: bill.allPaid ? (bill.paymentMethod || 'cash') : 'not paid',
         },
-        restaurantName: 'AI POS Restaurant',
-        restaurantAddress: 'Main Branch',
-        restaurantPhone: '+91-0000000000',
+        includeTax: gstEnabled,
+        restaurantName: appSettings.restaurantName,
+        restaurantPhone: appSettings.restaurantPhone,
       });
     } catch (err) {
       setError(err.message || 'Failed to print bill');
@@ -251,7 +268,7 @@ function BillingPage() {
     <main className="page-shell">
       <header className="page-header">
         <h1>Cashier - Billing & Payments (Step 7)</h1>
-        <p>View running unpaid bills only and complete payments.</p>
+        <p>Mark paid, print bill, then complete to close and remove.</p>
       </header>
 
       <section className="kds-toolbar">
@@ -289,19 +306,6 @@ function BillingPage() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#334155' }}>
-            <span>GST %</span>
-            <input
-              type="number"
-              min="0"
-              max="100"
-              step="0.01"
-              value={gstRate}
-              onChange={(event) => setGstRate(event.target.value === '' ? '' : Number(event.target.value))}
-              style={{ width: '90px' }}
-            />
-          </label>
-
           <button type="button" className="secondary-btn" onClick={loadBillingData}>
             Refresh
           </button>
@@ -319,6 +323,7 @@ function BillingPage() {
               <BillingOrderCard
                 key={bill.id}
                 bill={bill}
+                gstEnabled={gstEnabled}
                 gstRate={Number(gstRate || 0)}
                 onPay={handleMarkPaid}
                 onComplete={handleCompleteBill}

@@ -3,6 +3,7 @@ import { formatCurrency } from '../../utils/formatCurrency';
 
 function BillingOrderCard({
   bill,
+  gstEnabled,
   gstRate,
   onPay,
   onComplete,
@@ -25,7 +26,6 @@ function BillingOrderCard({
           {!bill.table_number ? <p>{bill.subtitle}</p> : null}
           {bill.orderRefs?.length ? <p className="muted-text">Orders: {bill.orderRefs.join(', ')}</p> : null}
         </div>
-        <span className={`status-badge status-${bill.status}`}>{bill.status}</span>
       </div>
 
       <ul className="billing-items-list">
@@ -44,14 +44,22 @@ function BillingOrderCard({
           <span>Subtotal</span>
           <strong>{formatCurrency(bill.subtotal)}</strong>
         </div>
-        <div>
-          <span>Tax ({gstRate}%)</span>
-          <strong>{formatCurrency(bill.taxAmount)}</strong>
-        </div>
+        {gstEnabled ? (
+          <div>
+            <span>Tax ({gstRate}%)</span>
+            <strong>{formatCurrency(bill.taxAmount)}</strong>
+          </div>
+        ) : null}
         <div className="bill-total-row">
           <span>Total</span>
           <strong className="bill-total-amount">{formatCurrency(bill.totalAmount)}</strong>
         </div>
+        {bill.allPaid ? (
+          <div>
+            <span>Payment Method</span>
+            <strong>{bill.paymentMethod || 'cash'}</strong>
+          </div>
+        ) : null}
       </div>
 
       <div className="billing-actions">

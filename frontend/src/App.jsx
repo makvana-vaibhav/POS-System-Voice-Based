@@ -9,6 +9,7 @@ import KitchenPage from './pages/KitchenPage';
 import BillingPage from './pages/BillingPage';
 import LoginPage from './pages/LoginPage';
 import UsersPage from './pages/UsersPage';
+import SettingsPage from './pages/SettingsPage';
 import { authApi, getAuthToken } from './services/api';
 
 function App() {
@@ -70,6 +71,7 @@ function App() {
       { key: 'orders', label: 'Waiter - Orders', roles: ['admin', 'waiter', 'cashier'] },
       { key: 'kitchen', label: 'Kitchen', roles: ['admin', 'kitchen', 'cashier'] },
       { key: 'billing', label: 'Cashier - Billing', roles: ['admin', 'cashier'] },
+      { key: 'settings', label: 'Settings', roles: ['admin', 'cashier'] },
     ];
 
     return allTabs.filter((tab) => tab.roles.includes(currentUser.role));
@@ -152,6 +154,7 @@ function App() {
       {activeView === 'orders' ? <OrdersPage /> : null}
       {activeView === 'kitchen' ? <KitchenPage /> : null}
       {activeView === 'billing' ? <BillingPage /> : null}
+      {activeView === 'settings' ? <SettingsPage /> : null}
     </div>
   );
 }

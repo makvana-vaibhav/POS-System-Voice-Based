@@ -307,6 +307,16 @@
 .users-table th {
   color: #334155;
   background: #f8fafc;
+
+.users-table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.users-table-actions .secondary-btn {
+  padding: 6px 10px;
+}
 }
 
 .users-table td {
@@ -1366,6 +1376,12 @@
 }
 
 .user-role-modal-row select {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.user-role-modal-row input {
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   padding: 10px 12px;

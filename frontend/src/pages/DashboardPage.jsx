@@ -162,6 +162,7 @@ function DashboardPage({ onNavigate, viewMode = 'dashboard' }) {
 
   const dashboardCards = useMemo(
     () => [
+      { key: 'analytics', title: 'Analytics', icon: 'analytics', tone: 'violet', description: 'View trends, charts, and payment insights' },
       { key: 'menu', title: 'Menu', icon: 'menu', tone: 'emerald', description: 'Manage items and categories' },
       { key: 'tables', title: 'Tables', icon: 'tables', tone: 'orange', description: 'Manage table setup and status' },
       { key: 'users', title: 'Users', icon: 'users', tone: 'sky', description: 'Create users and assign roles' },

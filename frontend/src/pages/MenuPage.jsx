@@ -240,7 +240,7 @@ function MenuPage() {
       <section className="stats-compact">
         <span className="stat-compact-item">Items: <strong>{items.length}</strong></span>
         <span className="stat-compact-item">Categories: <strong>{categories.length}</strong></span>
-        <span className="stat-compact-item">Top: <strong>{bestSeller ? bestSeller.name : '-'}</strong></span>
+        <span className="stat-compact-item">Top Selling: <strong>{bestSeller ? bestSeller.name : '-'}</strong></span>
       </section>
 
       <section className="menu-actions-grid">

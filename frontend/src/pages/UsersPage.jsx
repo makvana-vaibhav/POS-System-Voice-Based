@@ -11,6 +11,11 @@ function UsersPage() {
   const [successMessage, setSuccessMessage] = useState('');
   const [roleModalUser, setRoleModalUser] = useState(null);
   const [nextRole, setNextRole] = useState('waiter');
+  const [passwordModalUser, setPasswordModalUser] = useState(null);
+  const [passwordForm, setPasswordForm] = useState({
+    password: '',
+    confirmPassword: '',
+  });
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -70,10 +75,14 @@ function UsersPage() {
     }
   }
 
-  async function handleUpdateUser(userId, payload) {
+  async function handleUpdateUser(userId, payload, successText = '') {
     try {
       setError('');
+      setSuccessMessage('');
       await userApi.updateUser(userId, payload);
+      if (successText) {
+        setSuccessMessage(successText);
+      }
       await loadUsers();
     } catch (err) {
       setError(err.message || 'Failed to update user');
@@ -87,8 +96,45 @@ function UsersPage() {
 
   async function handleSubmitRoleUpdate() {
     if (!roleModalUser) return;
-    await handleUpdateUser(roleModalUser.id, { role: nextRole });
+    await handleUpdateUser(roleModalUser.id, { role: nextRole }, 'User role updated.');
     setRoleModalUser(null);
+  }
+
+  function openPasswordModal(user) {
+    setPasswordModalUser(user);
+    setPasswordForm({ password: '', confirmPassword: '' });
+    setError('');
+    setSuccessMessage('');
+  }
+
+  async function handleSubmitPasswordUpdate() {
+    if (!passwordModalUser) return;
+
+    const nextPassword = passwordForm.password.trim();
+    const confirmPassword = passwordForm.confirmPassword.trim();
+
+    if (!nextPassword || !confirmPassword) {
+      setError('Both password fields are required.');
+      return;
+    }
+
+    if (nextPassword.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+
+    if (nextPassword !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    await handleUpdateUser(
+      passwordModalUser.id,
+      { password: nextPassword },
+      'Password updated successfully.'
+    );
+    setPasswordModalUser(null);
+    setPasswordForm({ password: '', confirmPassword: '' });
   }
 
   return (
@@ -181,24 +227,37 @@ function UsersPage() {
                     </span>
                   </td>
                   <td>
-                    <button
-                      type="button"
-                      className="secondary-btn"
-                      onClick={() => openRoleModal(user)}
-                    >
-                      Change Role
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary-btn"
-                      onClick={() =>
-                        handleUpdateUser(user.id, {
-                          is_active: !user.is_active,
-                        })
-                      }
-                    >
-                      {user.is_active ? 'Disable' : 'Enable'}
-                    </button>
+                    <div className="users-table-actions">
+                      <button
+                        type="button"
+                        className="secondary-btn"
+                        onClick={() => openRoleModal(user)}
+                      >
+                        Change Role
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-btn"
+                        onClick={() => openPasswordModal(user)}
+                      >
+                        Change Password
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-btn"
+                        onClick={() =>
+                          handleUpdateUser(
+                            user.id,
+                            {
+                              is_active: !user.is_active,
+                            },
+                            `User ${user.is_active ? 'disabled' : 'enabled'}.`
+                          )
+                        }
+                      >
+                        {user.is_active ? 'Disable' : 'Enable'}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -231,6 +290,53 @@ function UsersPage() {
                   Save Role
                 </button>
                 <button type="button" className="secondary-btn" onClick={() => setRoleModalUser(null)}>
+                  Cancel
+                </button>
+              </div>
+            </section>
+          </div>
+        </div>
+      ) : null}
+
+      {passwordModalUser ? (
+        <div className="checkout-overlay" role="dialog" aria-modal="true" aria-label="Change password">
+          <button
+            type="button"
+            className="checkout-overlay-backdrop"
+            onClick={() => setPasswordModalUser(null)}
+            aria-label="Close password dialog"
+          />
+          <div className="checkout-overlay-panel">
+            <section className="admin-form-card">
+              <h2>Change Password</h2>
+              <p className="muted-text">
+                {passwordModalUser.full_name} ({passwordModalUser.username})
+              </p>
+              <div className="user-role-modal-row">
+                <input
+                  type="password"
+                  placeholder="New password"
+                  value={passwordForm.password}
+                  onChange={(event) =>
+                    setPasswordForm((prev) => ({ ...prev, password: event.target.value }))
+                  }
+                />
+                <input
+                  type="password"
+                  placeholder="Confirm new password"
+                  value={passwordForm.confirmPassword}
+                  onChange={(event) =>
+                    setPasswordForm((prev) => ({ ...prev, confirmPassword: event.target.value }))
+                  }
+                />
+                <button type="button" className="primary-btn" onClick={handleSubmitPasswordUpdate}>
+                  Save Password
+                </button>
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={() => setPasswordModalUser(null)}
+                >
                   Cancel
                 </button>
               </div>

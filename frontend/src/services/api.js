@@ -59,7 +59,8 @@ export const menuApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
-  getItems: () => request('/menu/items'),
+  getItems: ({ includeUnavailable } = {}) =>
+    request(`/menu/items${includeUnavailable ? '?includeUnavailable=true' : ''}`),
   createItem: (payload) =>
     request('/menu/items', {
       method: 'POST',
@@ -74,12 +75,23 @@ export const menuApi = {
       method: 'PUT',
       body: JSON.stringify(payload),
     }),
+  importItemsCsv: (csv_text) =>
+    request('/menu/items/import-csv', {
+      method: 'POST',
+      body: JSON.stringify({ csv_text }),
+    }),
 };
 
 export const dashboardApi = {
   getSummary: () => request('/dashboard/summary'),
   getTopItems: (limit = 5) => request(`/dashboard/top-items?limit=${limit}`),
   getItemRevenue: (menuItemId) => request(`/dashboard/item-revenue?menuItemId=${menuItemId}`),
+  getAnalytics: ({ from, to } = {}) => {
+    const query = new URLSearchParams();
+    if (from) query.set('from', from);
+    if (to) query.set('to', to);
+    return request(`/dashboard/analytics${query.toString() ? `?${query.toString()}` : ''}`);
+  },
 };
 
 export const tableApi = {
@@ -122,6 +134,7 @@ export const orderApi = {
 
 export const paymentApi = {
   getPaymentByOrderId: (orderId) => request(`/payments/order/${orderId}`),
+  getActiveBills: () => request('/payments/active-bills'),
   generateBill: (orderId) =>
     request(`/payments/order/${orderId}/bill`, {
       method: 'POST',

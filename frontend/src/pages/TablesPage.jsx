@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import TableCard from '../components/table/TableCard';
 import { tableApi } from '../services/api';
 
-function TablesPage() {
+function TablesPage({ onNavigate }) {
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -113,6 +113,11 @@ function TablesPage() {
     }
   }
 
+  function handleOpenOrderForTable(table) {
+    localStorage.setItem('pos_selected_table_id', String(table.id));
+    onNavigate?.('orders');
+  }
+
   return (
     <main className="page-shell">
       <header className="page-header">
@@ -178,6 +183,7 @@ function TablesPage() {
               onEdit={handleStartEdit}
               onDelete={handleDeleteTable}
               onStatusChange={handleStatusChange}
+              onOpenOrder={handleOpenOrderForTable}
             />
           ))}
         </section>

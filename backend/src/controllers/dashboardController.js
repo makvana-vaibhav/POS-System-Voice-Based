@@ -115,4 +115,84 @@ const getItemRevenue = async (req, res) => {
   }
 };
 
-module.exports = { getDashboardSummary, getSalesByDate, getTopItems, getItemRevenue };
+// GET /api/dashboard/analytics?from=YYYY-MM-DD&to=YYYY-MM-DD
+const getAnalytics = async (req, res) => {
+  const { from, to } = req.query;
+
+  try {
+    const [kpiResult, dailySalesResult, paymentBreakdownResult] = await Promise.all([
+      pool.query(
+        `SELECT
+            COUNT(*) AS total_orders,
+            COUNT(*) FILTER (WHERE o.status = 'cancelled') AS cancelled_orders,
+            COUNT(*) FILTER (WHERE o.status = 'served') AS served_orders,
+            COUNT(*) FILTER (WHERE o.status = 'pending') AS pending_orders,
+            COUNT(*) FILTER (WHERE o.status = 'preparing') AS preparing_orders,
+            COUNT(*) FILTER (WHERE o.status = 'ready') AS ready_orders,
+            COUNT(DISTINCT o.table_id) AS unique_tables_used,
+            COALESCE(SUM(oi.quantity), 0) AS total_items_sold,
+            COALESCE(SUM(CASE WHEN p.payment_status = 'paid' THEN p.total_amount ELSE 0 END), 0) AS total_revenue,
+            COALESCE(COUNT(p.id) FILTER (WHERE p.payment_status = 'paid'), 0) AS total_paid_orders
+         FROM orders o
+         LEFT JOIN order_items oi ON oi.order_id = o.id
+         LEFT JOIN payments p ON p.order_id = o.id
+         WHERE ($1::date IS NULL OR DATE(o.created_at) >= $1::date)
+           AND ($2::date IS NULL OR DATE(o.created_at) <= $2::date)`,
+        [from || null, to || null]
+      ),
+      pool.query(
+        `SELECT
+            DATE(p.created_at) AS date,
+            COUNT(*) FILTER (WHERE p.payment_status = 'paid') AS paid_orders,
+            COALESCE(SUM(CASE WHEN p.payment_status = 'paid' THEN p.total_amount ELSE 0 END), 0) AS revenue
+         FROM payments p
+         WHERE ($1::date IS NULL OR DATE(p.created_at) >= $1::date)
+           AND ($2::date IS NULL OR DATE(p.created_at) <= $2::date)
+         GROUP BY DATE(p.created_at)
+         ORDER BY date DESC`,
+        [from || null, to || null]
+      ),
+      pool.query(
+        `SELECT
+            payment_method,
+            COUNT(*) FILTER (WHERE payment_status = 'paid') AS count,
+            COALESCE(SUM(CASE WHEN payment_status = 'paid' THEN total_amount ELSE 0 END), 0) AS revenue
+         FROM payments
+         WHERE ($1::date IS NULL OR DATE(created_at) >= $1::date)
+           AND ($2::date IS NULL OR DATE(created_at) <= $2::date)
+         GROUP BY payment_method
+         ORDER BY revenue DESC`,
+        [from || null, to || null]
+      ),
+    ]);
+
+    const kpi = kpiResult.rows[0] || {};
+    const totalPaidOrders = Number(kpi.total_paid_orders || 0);
+    const totalRevenue = Number(kpi.total_revenue || 0);
+
+    res.json({
+      success: true,
+      data: {
+        kpis: {
+          total_orders: Number(kpi.total_orders || 0),
+          cancelled_orders: Number(kpi.cancelled_orders || 0),
+          served_orders: Number(kpi.served_orders || 0),
+          pending_orders: Number(kpi.pending_orders || 0),
+          preparing_orders: Number(kpi.preparing_orders || 0),
+          ready_orders: Number(kpi.ready_orders || 0),
+          unique_tables_used: Number(kpi.unique_tables_used || 0),
+          total_items_sold: Number(kpi.total_items_sold || 0),
+          total_revenue: totalRevenue,
+          total_paid_orders: totalPaidOrders,
+          average_order_value: totalPaidOrders ? Number((totalRevenue / totalPaidOrders).toFixed(2)) : 0,
+        },
+        daily_sales: dailySalesResult.rows,
+        payment_method_breakdown: paymentBreakdownResult.rows,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { getDashboardSummary, getSalesByDate, getTopItems, getItemRevenue, getAnalytics };

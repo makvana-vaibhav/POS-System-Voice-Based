@@ -11,11 +11,18 @@ const getAllOrders = async (req, res) => {
             'id', oi.id,
             'menu_item_id', oi.menu_item_id,
             'name', mi.name,
+            'description', mi.description,
             'quantity', oi.quantity,
             'unit_price', oi.unit_price,
             'note', oi.note
           )
-        ) FILTER (WHERE oi.id IS NOT NULL) AS items
+        ) FILTER (
+          WHERE oi.id IS NOT NULL
+            AND (
+              o.status NOT IN ('pending', 'preparing', 'ready')
+              OR oi.created_at >= o.updated_at
+            )
+        ) AS items
       FROM orders o
       LEFT JOIN restaurant_tables rt ON o.table_id = rt.id
       LEFT JOIN order_items oi ON oi.order_id = o.id
@@ -46,7 +53,7 @@ const getOrderById = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
     const itemsResult = await pool.query(
-      `SELECT oi.*, mi.name FROM order_items oi
+      `SELECT oi.*, mi.name, mi.description FROM order_items oi
        JOIN menu_items mi ON oi.menu_item_id = mi.id
        WHERE oi.order_id = $1`,
       [req.params.id]
@@ -82,6 +89,8 @@ const createOrder = async (req, res) => {
   try {
     await client.query('BEGIN');
 
+    let order = null;
+
     if (table_id) {
       const tableResult = await client.query(
         'SELECT * FROM restaurant_tables WHERE id = $1',
@@ -92,17 +101,51 @@ const createOrder = async (req, res) => {
         throw new Error('Selected table not found');
       }
 
-      if (tableResult.rows[0].status === 'occupied') {
-        throw new Error('Selected table is already occupied');
+      if (order_type === 'dine-in') {
+        const openOrderResult = await client.query(
+          `SELECT o.*
+           FROM orders o
+           LEFT JOIN payments p ON p.order_id = o.id
+           WHERE o.table_id = $1
+             AND o.order_type = 'dine-in'
+             AND o.status <> 'cancelled'
+             AND COALESCE(p.payment_status, 'pending') <> 'paid'
+           ORDER BY o.created_at DESC
+           LIMIT 1`,
+          [table_id]
+        );
+
+        if (openOrderResult.rows.length) {
+          order = openOrderResult.rows[0];
+        } else if (tableResult.rows[0].status === 'occupied') {
+          throw new Error('Selected table is already occupied');
+        }
       }
     }
 
-    // Create order
-    const orderResult = await client.query(
-      `INSERT INTO orders (table_id, order_type, note) VALUES ($1, $2, $3) RETURNING *`,
-      [table_id, order_type, note]
-    );
-    const order = orderResult.rows[0];
+    if (!order) {
+      const orderResult = await client.query(
+        `INSERT INTO orders (table_id, order_type, note) VALUES ($1, $2, $3) RETURNING *`,
+        [table_id, order_type, note]
+      );
+      order = orderResult.rows[0];
+    } else {
+      const noteValue = note && note.trim() ? note.trim() : null;
+      const updatedOrder = await client.query(
+        `UPDATE orders
+         SET status = 'pending',
+             note = CASE
+               WHEN $1::text IS NULL THEN note
+               WHEN note IS NULL OR note = '' THEN $1
+               ELSE CONCAT(note, E'\n', $1::text)
+             END,
+             updated_at = NOW()
+         WHERE id = $2
+         RETURNING *`,
+        [noteValue, order.id]
+      );
+      order = updatedOrder.rows[0] || order;
+    }
 
     // Add items
     for (const item of items) {
@@ -116,6 +159,36 @@ const createOrder = async (req, res) => {
         `INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, note)
          VALUES ($1, $2, $3, $4, $5)`,
         [order.id, item.menu_item_id, item.quantity, menuItem.rows[0].price, item.note]
+      );
+    }
+
+    const pendingPaymentResult = await client.query(
+      `SELECT id, tax_rate
+       FROM payments
+       WHERE order_id = $1 AND payment_status = 'pending'
+       LIMIT 1`,
+      [order.id]
+    );
+
+    if (pendingPaymentResult.rows.length) {
+      const pendingPayment = pendingPaymentResult.rows[0];
+      const itemsTotalResult = await client.query(
+        'SELECT COALESCE(SUM(quantity * unit_price), 0) AS subtotal FROM order_items WHERE order_id = $1',
+        [order.id]
+      );
+      const subtotal = parseFloat(itemsTotalResult.rows[0].subtotal || 0);
+      const taxRate = parseFloat(pendingPayment.tax_rate || 0);
+      const taxAmount = Number(((subtotal * taxRate) / 100).toFixed(2));
+      const totalAmount = Number((subtotal + taxAmount).toFixed(2));
+
+      await client.query(
+        `UPDATE payments
+         SET subtotal = $1,
+             tax_amount = $2,
+             total_amount = $3,
+             updated_at = NOW()
+         WHERE id = $4`,
+        [subtotal.toFixed(2), taxAmount.toFixed(2), totalAmount.toFixed(2), pendingPayment.id]
       );
     }
 
@@ -181,15 +254,20 @@ const updateOrderStatus = async (req, res) => {
   }
   try {
     const result = await pool.query(
-      `UPDATE orders SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+      `UPDATE orders
+       SET status = $1::varchar,
+           updated_at = CASE WHEN $1::text IN ('served', 'cancelled') THEN NOW() ELSE updated_at END
+       WHERE id = $2
+       RETURNING *`,
       [status, req.params.id]
     );
     if (!result.rows.length) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
-    // Free table when order is served or cancelled
-    if (status === 'served' || status === 'cancelled') {
+    // Free table only when order is cancelled.
+    // For served dine-in orders, table remains occupied until payment is completed.
+    if (status === 'cancelled') {
       await pool.query(
         "UPDATE restaurant_tables SET status = 'available' WHERE id = (SELECT table_id FROM orders WHERE id = $1)",
         [req.params.id]
@@ -211,6 +289,11 @@ const cancelOrder = async (req, res) => {
     if (!result.rows.length) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
+
+    if (result.rows[0].table_id) {
+      await pool.query("UPDATE restaurant_tables SET status = 'available' WHERE id = $1", [result.rows[0].table_id]);
+    }
+
     res.json({ success: true, message: 'Order cancelled', data: result.rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

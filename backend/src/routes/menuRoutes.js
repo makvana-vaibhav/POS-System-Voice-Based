@@ -8,6 +8,7 @@ const {
   createMenuItem,
   updateMenuItem,
   deleteMenuItem,
+  importMenuItemsFromCsv,
 } = require('../controllers/menuController');
 const { allowRoles } = require('../middleware/authMiddleware');
 
@@ -17,6 +18,7 @@ router.get('/items/:id', allowRoles('admin', 'waiter', 'cashier', 'kitchen'), ge
 
 router.post('/categories', allowRoles('admin'), createCategory);
 router.post('/items', allowRoles('admin'), createMenuItem);
+router.post('/items/import-csv', allowRoles('admin'), importMenuItemsFromCsv);
 router.put('/items/:id', allowRoles('admin'), updateMenuItem);
 router.delete('/items/:id', allowRoles('admin'), deleteMenuItem);
 

@@ -2,48 +2,26 @@ import { formatCurrency } from '../../utils/formatCurrency';
 
 function OrderCart({
   selectedTableId,
-  availableTables,
   orderType,
   note,
   cartItems,
   subtotal,
-  onTableChange,
-  onOrderTypeChange,
   onNoteChange,
   onIncrease,
   onDecrease,
   onRemove,
   onSubmit,
+  canPlaceOrder,
   submitting,
 }) {
+  const showTableWarning = orderType === 'dine-in' && !selectedTableId;
+  const showItemWarning = cartItems.length === 0;
+
   return (
     <aside className="order-cart-card">
-      <h2>Current Bill</h2>
-
-      <div className="order-form-grid">
-        <label>
-          <span>Order type</span>
-          <select value={orderType} onChange={(event) => onOrderTypeChange(event.target.value)}>
-            <option value="dine-in">dine-in</option>
-            <option value="takeaway">takeaway</option>
-          </select>
-        </label>
-
-        <label>
-          <span>Select table</span>
-          <select
-            value={selectedTableId}
-            onChange={(event) => onTableChange(event.target.value)}
-            disabled={orderType === 'takeaway'}
-          >
-            <option value="">Choose table</option>
-            {availableTables.map((table) => (
-              <option key={table.id} value={table.id}>
-                Table {table.table_number} ({table.capacity} seats)
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="order-cart-header">
+        <h2>Current Bill</h2>
+        <span className="muted-text">Live</span>
       </div>
 
       <label className="order-note-field">
@@ -60,11 +38,7 @@ function OrderCart({
         {cartItems.length ? (
           cartItems.map((item) => (
             <div key={item.id} className="cart-item-row">
-              <div>
-                <strong>{item.name}</strong>
-                <p>{formatCurrency(item.price)} each</p>
-              </div>
-
+              <strong className="cart-item-name">{item.name}</strong>
               <div className="cart-item-controls">
                 <button type="button" onClick={() => onDecrease(item.id)}>
                   -
@@ -87,13 +61,25 @@ function OrderCart({
       <div className="cart-summary">
         <div>
           <span>Subtotal</span>
-          <strong>{formatCurrency(subtotal)}</strong>
+          <strong className="bill-total-amount">{formatCurrency(subtotal)}</strong>
         </div>
       </div>
 
-      <button type="button" className="submit-order-btn" onClick={onSubmit} disabled={submitting}>
-        {submitting ? 'Placing Order...' : 'Place Order'}
-      </button>
+      {showTableWarning ? (
+        <p className="cart-warning-text">Select a table for dine-in order.</p>
+      ) : null}
+      {showItemWarning ? <p className="cart-warning-text">Add at least one item.</p> : null}
+
+      <div className="order-cart-footer-sticky">
+        <button
+          type="button"
+          className="submit-order-btn"
+          onClick={onSubmit}
+          disabled={submitting || !canPlaceOrder}
+        >
+          {submitting ? 'Placing Order...' : 'Place Order'}
+        </button>
+      </div>
     </aside>
   );
 }

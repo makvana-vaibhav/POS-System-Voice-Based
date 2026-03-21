@@ -1,20 +1,27 @@
 import { useEffect, useMemo, useState } from 'react';
 import MenuGrid from '../components/menu/MenuGrid';
 import { dashboardApi, menuApi } from '../services/api';
-import { formatCurrency } from '../utils/formatCurrency';
+
+const SAMPLE_MENU_CSV = `category,name,description,price,is_available
+Beverages,Masala Chai,Indian spiced tea,40,true
+Snacks,Veg Sandwich,Toasted sandwich with veggies,120,true
+Main Course,Paneer Butter Masala,Creamy paneer curry,280,true`;
 
 function MenuPage() {
   const [categories, setCategories] = useState([]);
   const [items, setItems] = useState([]);
   const [topItems, setTopItems] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedItemForRevenue, setSelectedItemForRevenue] = useState('');
-  const [itemRevenueData, setItemRevenueData] = useState(null);
-  const [actionView, setActionView] = useState('see-menu');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [actionView, setActionView] = useState('none');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [categorySubmitting, setCategorySubmitting] = useState(false);
+  const [importingCsv, setImportingCsv] = useState(false);
+  const [csvFileName, setCsvFileName] = useState('');
+  const [csvText, setCsvText] = useState('');
+  const [importResult, setImportResult] = useState(null);
   const [editingItemId, setEditingItemId] = useState(null);
 
   const [formData, setFormData] = useState({
@@ -22,6 +29,7 @@ function MenuPage() {
     name: '',
     description: '',
     price: '',
+    is_available: true,
   });
 
   const [categoryFormData, setCategoryFormData] = useState({
@@ -34,6 +42,7 @@ function MenuPage() {
       name: '',
       description: '',
       price: '',
+      is_available: true,
     });
     setEditingItemId(null);
   }
@@ -45,7 +54,7 @@ function MenuPage() {
 
       const [categoriesResponse, itemsResponse] = await Promise.all([
         menuApi.getCategories(),
-        menuApi.getItems(),
+        menuApi.getItems({ includeUnavailable: true }),
       ]);
 
       setCategories(categoriesResponse.data || []);
@@ -65,29 +74,22 @@ function MenuPage() {
   }, []);
 
   const filteredItems = useMemo(() => {
-    if (selectedCategory === 'all') {
-      return items;
-    }
+    const normalizedQuery = searchQuery.trim().toLowerCase();
 
-    return items.filter((item) => String(item.category_id) === String(selectedCategory));
-  }, [items, selectedCategory]);
+    return items.filter((item) => {
+      const categoryMatch =
+        selectedCategory === 'all' || String(item.category_id) === String(selectedCategory);
+
+      if (!categoryMatch) return false;
+      if (!normalizedQuery) return true;
+
+      return [item.name, item.description, item.category_name]
+        .filter(Boolean)
+        .some((value) => value.toLowerCase().includes(normalizedQuery));
+    });
+  }, [items, selectedCategory, searchQuery]);
 
   const bestSeller = topItems.length ? topItems[0] : null;
-
-  async function handleAnalyzeItemRevenue() {
-    try {
-      setError('');
-      if (!selectedItemForRevenue) {
-        setItemRevenueData(null);
-        return;
-      }
-
-      const response = await dashboardApi.getItemRevenue(selectedItemForRevenue);
-      setItemRevenueData(response.data);
-    } catch (err) {
-      setError(err.message || 'Failed to fetch item revenue');
-    }
-  }
 
   async function handleSubmitItem(event) {
     event.preventDefault();
@@ -100,10 +102,12 @@ function MenuPage() {
         name: formData.name.trim(),
         description: formData.description.trim(),
         price: Number(formData.price),
+        is_available: Boolean(formData.is_available),
       };
 
       if (editingItemId) {
         await menuApi.updateItem(editingItemId, payload);
+        setEditingItemId(null);
       } else {
         await menuApi.createItem(payload);
       }
@@ -118,6 +122,23 @@ function MenuPage() {
     }
   }
 
+  async function handleInlineUpdateItem(itemId, payload) {
+    try {
+      setError('');
+      await menuApi.updateItem(itemId, payload);
+      setEditingItemId(null);
+      resetForm();
+      await loadMenuData();
+    } catch (err) {
+      setError(err.message || 'Failed to save menu item');
+    }
+  }
+
+  function handleCancelEdit() {
+    setEditingItemId(null);
+    resetForm();
+  }
+
   async function handleCreateCategory(event) {
     event.preventDefault();
     try {
@@ -130,7 +151,7 @@ function MenuPage() {
 
       setCategoryFormData({ name: '' });
       await loadMenuData();
-      setActionView('see-menu');
+      setActionView('none');
     } catch (err) {
       setError(err.message || 'Failed to create category');
     } finally {
@@ -141,14 +162,63 @@ function MenuPage() {
   function handleStartEdit(item) {
     setError('');
     setEditingItemId(item.id);
-    setActionView('add-item');
     setFormData({
       category_id: item.category_id ? String(item.category_id) : '',
       name: item.name || '',
       description: item.description || '',
       price: item.price ?? '',
+      is_available: item.is_available ?? true,
     });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function handleImportCsv(event) {
+    event.preventDefault();
+    try {
+      setError('');
+      setImportResult(null);
+
+      if (!csvText.trim()) {
+        setError('Please choose a CSV file or paste CSV content first.');
+        return;
+      }
+
+      setImportingCsv(true);
+      const response = await menuApi.importItemsCsv(csvText);
+      setImportResult(response.data || null);
+      await loadMenuData();
+      setActionView('none');
+    } catch (err) {
+      setError(err.message || 'Failed to import CSV');
+    } finally {
+      setImportingCsv(false);
+    }
+  }
+
+  function handleSelectCsvFile(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setCsvFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCsvText(String(reader.result || ''));
+    };
+    reader.onerror = () => {
+      setError('Failed to read CSV file');
+    };
+    reader.readAsText(file);
+  }
+
+  function handleDownloadSampleCsv() {
+    const blob = new Blob([SAMPLE_MENU_CSV], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'menu-import-sample.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   }
 
   async function handleDeleteItem(itemId) {
@@ -165,87 +235,38 @@ function MenuPage() {
     <main className="page-shell">
       <header className="page-header">
         <h1>Menu</h1>
-        <p>Admin menu control panel with actions, insights, and category-wise items.</p>
       </header>
 
-      <section className="stats-grid">
-        <article className="stat-card">
-          <p>Total Menu Items</p>
-          <h3>{items.length}</h3>
-        </article>
-
-        <article className="stat-card">
-          <p>Total Categories</p>
-          <h3>{categories.length}</h3>
-        </article>
-
-        <article className="stat-card">
-          <p>Best Seller</p>
-          <h3>{bestSeller ? bestSeller.name : '-'}</h3>
-          <small className="muted-text">
-            {bestSeller ? `Ordered ${bestSeller.total_ordered} times` : 'No sales data yet'}
-          </small>
-        </article>
+      <section className="stats-compact">
+        <span className="stat-compact-item">Items: <strong>{items.length}</strong></span>
+        <span className="stat-compact-item">Categories: <strong>{categories.length}</strong></span>
+        <span className="stat-compact-item">Top: <strong>{bestSeller ? bestSeller.name : '-'}</strong></span>
       </section>
 
       <section className="menu-actions-grid">
         <button
           type="button"
-          className={`menu-action-card ${actionView === 'see-menu' ? 'active' : ''}`}
-          onClick={() => setActionView('see-menu')}
-        >
-          <h3>See Menu</h3>
-          <p>Browse all items category-wise.</p>
-        </button>
-
-        <button
-          type="button"
           className={`menu-action-card ${actionView === 'add-item' ? 'active' : ''}`}
-          onClick={() => setActionView('add-item')}
+          onClick={() => setActionView((prev) => (prev === 'add-item' ? 'none' : 'add-item'))}
         >
-          <h3>Add Item</h3>
-          <p>Create a new menu item.</p>
+          Add Item
         </button>
 
         <button
           type="button"
           className={`menu-action-card ${actionView === 'add-category' ? 'active' : ''}`}
-          onClick={() => setActionView('add-category')}
+          onClick={() => setActionView((prev) => (prev === 'add-category' ? 'none' : 'add-category'))}
         >
-          <h3>Add Category</h3>
-          <p>Create a new item category.</p>
+          Add Category
         </button>
 
-        <article className="menu-action-card menu-revenue-card">
-          <h3>Revenue by Item</h3>
-          <div className="inline-form-row">
-            <select
-              value={selectedItemForRevenue}
-              onChange={(event) => setSelectedItemForRevenue(event.target.value)}
-            >
-              <option value="">Select item</option>
-              {items.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-            <button type="button" className="secondary-btn" onClick={handleAnalyzeItemRevenue}>
-              Analyze
-            </button>
-          </div>
-
-          {itemRevenueData ? (
-            <div className="menu-revenue-result">
-              <p>
-                <strong>{itemRevenueData.menu_item_name}</strong>
-              </p>
-              <p>Total Qty: {itemRevenueData.total_quantity}</p>
-              <p>Gross Revenue: {formatCurrency(itemRevenueData.gross_revenue)}</p>
-              <p>Paid Orders: {itemRevenueData.paid_orders_count}</p>
-            </div>
-          ) : null}
-        </article>
+        <button
+          type="button"
+          className={`menu-action-card ${actionView === 'import-csv' ? 'active' : ''}`}
+          onClick={() => setActionView((prev) => (prev === 'import-csv' ? 'none' : 'import-csv'))}
+        >
+          Import CSV
+        </button>
       </section>
 
       {actionView === 'add-item' ? (
@@ -289,6 +310,17 @@ function MenuPage() {
               onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
             />
 
+            <label className="checkbox-field">
+              <input
+                type="checkbox"
+                checked={Boolean(formData.is_available)}
+                onChange={(event) =>
+                  setFormData((prev) => ({ ...prev, is_available: event.target.checked }))
+                }
+              />
+              Available
+            </label>
+
             <button type="submit" disabled={submitting}>
               {submitting ? 'Saving...' : editingItemId ? 'Update Item' : 'Add Item'}
             </button>
@@ -320,6 +352,73 @@ function MenuPage() {
         </section>
       ) : null}
 
+      {actionView === 'import-csv' ? (
+        <section className="admin-form-card">
+          <h2>Bulk Import Menu Items</h2>
+          <p className="muted-text">Columns: category, name, description, price, is_available</p>
+
+          <div className="csv-actions-row">
+            <button type="button" className="secondary-btn" onClick={handleDownloadSampleCsv}>
+              Download Sample CSV
+            </button>
+            <label className="csv-file-picker" htmlFor="menuCsvFile">
+              Choose CSV File
+            </label>
+            <input
+              id="menuCsvFile"
+              type="file"
+              accept=".csv,text/csv"
+              onChange={handleSelectCsvFile}
+              hidden
+            />
+            {csvFileName ? <small className="muted-text">Selected: {csvFileName}</small> : null}
+          </div>
+
+          <form onSubmit={handleImportCsv} className="csv-import-form">
+            <textarea
+              rows={10}
+              placeholder="Paste CSV content here"
+              value={csvText}
+              onChange={(event) => setCsvText(event.target.value)}
+            />
+            <div>
+              <button type="submit" disabled={importingCsv}>
+                {importingCsv ? 'Importing...' : 'Import Menu Items'}
+              </button>
+            </div>
+          </form>
+
+          {importResult ? (
+            <div className="csv-import-result">
+              <p>
+                Imported: <strong>{importResult.inserted_count}</strong>
+              </p>
+              <p>
+                Failed: <strong>{importResult.failed_count}</strong>
+              </p>
+              {importResult.errors?.length ? (
+                <ul>
+                  {importResult.errors.slice(0, 8).map((entry, index) => (
+                    <li key={`${entry.row}-${index}`}>
+                      Row {entry.row}: {entry.message}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      <section className="menu-toolbar">
+        <input
+          type="text"
+          placeholder="Search item, description, category..."
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+        />
+      </section>
+
       <section className="category-filter">
         <button
           className={selectedCategory === 'all' ? 'active' : ''}
@@ -342,11 +441,17 @@ function MenuPage() {
       {loading ? <p className="info-text">Loading menu...</p> : null}
       {error ? <p className="error-text">{error}</p> : null}
 
-      {!loading && actionView === 'see-menu' ? (
+      {!loading ? (
         <MenuGrid
           items={filteredItems}
           onDeleteItem={handleDeleteItem}
           onEditItem={handleStartEdit}
+          editingItemId={editingItemId}
+          onUpdateItem={handleInlineUpdateItem}
+          onCancelEdit={handleCancelEdit}
+          formData={formData}
+          setFormData={setFormData}
+          categories={categories}
         />
       ) : null}
     </main>

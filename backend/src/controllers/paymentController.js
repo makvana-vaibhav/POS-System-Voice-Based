@@ -18,6 +18,54 @@ const getPaymentByOrderId = async (req, res) => {
   }
 };
 
+// GET /api/payments/active-bills
+const getActiveBills = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT
+        o.*,
+        rt.table_number,
+        json_agg(
+          json_build_object(
+            'id', oi.id,
+            'menu_item_id', oi.menu_item_id,
+            'name', mi.name,
+            'quantity', oi.quantity,
+            'unit_price', oi.unit_price,
+            'note', oi.note
+          )
+        ) FILTER (WHERE oi.id IS NOT NULL) AS items,
+        CASE
+          WHEN p.id IS NULL THEN NULL
+          ELSE json_build_object(
+            'id', p.id,
+            'order_id', p.order_id,
+            'subtotal', p.subtotal,
+            'tax_rate', p.tax_rate,
+            'tax_amount', p.tax_amount,
+            'total_amount', p.total_amount,
+            'payment_status', p.payment_status,
+            'payment_method', p.payment_method,
+            'paid_at', p.paid_at
+          )
+        END AS payment
+      FROM orders o
+      LEFT JOIN restaurant_tables rt ON o.table_id = rt.id
+      LEFT JOIN order_items oi ON oi.order_id = o.id
+      LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
+      LEFT JOIN payments p ON p.order_id = o.id
+      WHERE o.status <> 'cancelled'
+        AND COALESCE(p.payment_status, 'pending') <> 'paid'
+      GROUP BY o.id, rt.table_number, p.id
+      ORDER BY o.created_at DESC`
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 // POST /api/payments/order/:orderId/bill  — generate bill
 const generateBill = async (req, res) => {
   const { orderId } = req.params;
@@ -52,8 +100,11 @@ const generateBill = async (req, res) => {
 const processPayment = async (req, res) => {
   const { payment_method = 'cash' } = req.body;
   const { orderId } = req.params;
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
+    await client.query('BEGIN');
+
+    const result = await client.query(
       `UPDATE payments
        SET payment_status = 'paid', payment_method = $1, paid_at = NOW()
        WHERE order_id = $2 AND payment_status = 'pending'
@@ -61,12 +112,30 @@ const processPayment = async (req, res) => {
       [payment_method, orderId]
     );
     if (!result.rows.length) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ success: false, message: 'Bill not found or already paid' });
     }
+
+    const orderResult = await client.query(
+      `UPDATE orders
+       SET status = 'served', updated_at = NOW()
+       WHERE id = $1
+       RETURNING table_id`,
+      [orderId]
+    );
+
+    if (orderResult.rows.length && orderResult.rows[0].table_id) {
+      await client.query("UPDATE restaurant_tables SET status = 'available' WHERE id = $1", [orderResult.rows[0].table_id]);
+    }
+
+    await client.query('COMMIT');
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
+    await client.query('ROLLBACK');
     res.status(500).json({ success: false, message: err.message });
+  } finally {
+    client.release();
   }
 };
 
-module.exports = { getPaymentByOrderId, generateBill, processPayment };
+module.exports = { getPaymentByOrderId, getActiveBills, generateBill, processPayment };

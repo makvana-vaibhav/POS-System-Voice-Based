@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import BillingOrderCard from '../components/billing/BillingOrderCard';
-import { orderApi, paymentApi } from '../services/api';
+import { paymentApi } from '../services/api';
+import { printReceipt } from '../utils/printReceipt';
 
 function BillingPage() {
   const [orders, setOrders] = useState([]);
@@ -8,32 +9,25 @@ function BillingPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [generatingOrderId, setGeneratingOrderId] = useState(null);
   const [payingOrderId, setPayingOrderId] = useState(null);
+  const [printingOrderId, setPrintingOrderId] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
-
-  async function tryLoadPayment(orderId) {
-    try {
-      const response = await paymentApi.getPaymentByOrderId(orderId);
-      setPaymentsByOrderId((prev) => ({ ...prev, [orderId]: response.data }));
-    } catch {
-      // bill not generated yet -> ignore
-    }
-  }
 
   async function loadBillingData() {
     try {
       setLoading(true);
       setError('');
 
-      const ordersResponse = await orderApi.getOrders();
-      const billableOrders = (ordersResponse.data || []).filter((order) =>
-        ['ready', 'served'].includes(order.status)
+      const activeBillsResponse = await paymentApi.getActiveBills();
+      const activeRows = activeBillsResponse.data || [];
+
+      setOrders(activeRows);
+      setPaymentsByOrderId(
+        activeRows.reduce((acc, row) => {
+          acc[row.id] = row.payment || null;
+          return acc;
+        }, {})
       );
-
-      setOrders(billableOrders);
-
-      await Promise.all(billableOrders.map((order) => tryLoadPayment(order.id)));
     } catch (err) {
       setError(err.message || 'Failed to load billing data');
     } finally {
@@ -52,22 +46,6 @@ function BillingPage() {
     return orders.filter((order) => order.status === statusFilter);
   }, [orders, statusFilter]);
 
-  async function handleGenerateBill(orderId) {
-    try {
-      setGeneratingOrderId(orderId);
-      setError('');
-      setSuccessMessage('');
-
-      const response = await paymentApi.generateBill(orderId);
-      setPaymentsByOrderId((prev) => ({ ...prev, [orderId]: response.data }));
-      setSuccessMessage(`Bill generated for order #${orderId}.`);
-    } catch (err) {
-      setError(err.message || 'Failed to generate bill');
-    } finally {
-      setGeneratingOrderId(null);
-    }
-  }
-
   async function handleMarkPaid(orderId, paymentMethod) {
     try {
       setPayingOrderId(orderId);
@@ -82,11 +60,6 @@ function BillingPage() {
       const payResponse = await paymentApi.processPayment(orderId, paymentMethod);
       setPaymentsByOrderId((prev) => ({ ...prev, [orderId]: payResponse.data }));
 
-      const order = orders.find((row) => row.id === orderId);
-      if (order && order.status !== 'served') {
-        await orderApi.updateOrderStatus(orderId, 'served');
-      }
-
       setSuccessMessage(`Payment completed for order #${orderId}.`);
       await loadBillingData();
     } catch (err) {
@@ -96,11 +69,37 @@ function BillingPage() {
     }
   }
 
+  async function handlePrintBill(order) {
+    try {
+      setPrintingOrderId(order.id);
+      setError('');
+
+      let payment = paymentsByOrderId[order.id];
+      if (!payment) {
+        const billResponse = await paymentApi.generateBill(order.id);
+        payment = billResponse.data;
+        setPaymentsByOrderId((prev) => ({ ...prev, [order.id]: payment }));
+      }
+
+      printReceipt({
+        order,
+        payment,
+        restaurantName: 'AI POS Restaurant',
+        restaurantAddress: 'Main Branch',
+        restaurantPhone: '+91-0000000000',
+      });
+    } catch (err) {
+      setError(err.message || 'Failed to print bill');
+    } finally {
+      setPrintingOrderId(null);
+    }
+  }
+
   return (
     <main className="page-shell">
       <header className="page-header">
         <h1>Cashier - Billing & Payments (Step 7)</h1>
-        <p>Generate bills for ready orders and complete payments.</p>
+        <p>View running unpaid bills only and complete payments.</p>
       </header>
 
       <section className="kds-toolbar">
@@ -116,6 +115,18 @@ function BillingPage() {
             onClick={() => setStatusFilter('ready')}
           >
             Ready
+          </button>
+          <button
+            className={statusFilter === 'pending' ? 'active' : ''}
+            onClick={() => setStatusFilter('pending')}
+          >
+            Pending
+          </button>
+          <button
+            className={statusFilter === 'preparing' ? 'active' : ''}
+            onClick={() => setStatusFilter('preparing')}
+          >
+            Preparing
           </button>
           <button
             className={statusFilter === 'served' ? 'active' : ''}
@@ -142,10 +153,10 @@ function BillingPage() {
                 key={order.id}
                 order={order}
                 payment={paymentsByOrderId[order.id]}
-                onGenerateBill={handleGenerateBill}
                 onPay={handleMarkPaid}
-                generatingOrderId={generatingOrderId}
+                onPrint={handlePrintBill}
                 payingOrderId={payingOrderId}
+                printingOrderId={printingOrderId}
               />
             ))
           ) : (

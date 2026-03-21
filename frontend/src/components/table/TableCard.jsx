@@ -1,11 +1,14 @@
-function TableCard({ table, onEdit, onDelete, onStatusChange }) {
-  const statuses = ['available', 'occupied', 'reserved'];
+function TableCard({ table, onEdit, onDelete, onStatusChange, onOpenOrder }) {
 
   return (
-    <article className="table-card">
+    <article className={`table-card table-card-${table.status}`}>
       <div className="table-card-header">
         <div>
-          <h3>Table {table.table_number}</h3>
+          <h3>
+            <button type="button" className="table-open-link" onClick={() => onOpenOrder?.(table)}>
+              Table {table.table_number}
+            </button>
+          </h3>
           <p>Capacity: {table.capacity}</p>
         </div>
         <div className="table-card-meta">
@@ -22,17 +25,15 @@ function TableCard({ table, onEdit, onDelete, onStatusChange }) {
       </div>
 
       <div className="table-actions">
-        {statuses.map((status) => (
-          <button
-            key={status}
-            type="button"
-            className={table.status === status ? 'active' : ''}
-            onClick={() => onStatusChange(table.id, status)}
-            disabled={table.status === status}
-          >
-            {status}
-          </button>
-        ))}
+        <select value={table.status} onChange={(event) => onStatusChange(table.id, event.target.value)}>
+          <option value="available">available</option>
+          <option value="occupied">occupied</option>
+          <option value="reserved">reserved</option>
+        </select>
+
+        <button type="button" className="primary-btn" onClick={() => onOpenOrder?.(table)}>
+          Open Order
+        </button>
       </div>
     </article>
   );

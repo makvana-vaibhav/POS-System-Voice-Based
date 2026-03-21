@@ -9,6 +9,8 @@ function UsersPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [roleModalUser, setRoleModalUser] = useState(null);
+  const [nextRole, setNextRole] = useState('waiter');
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -76,6 +78,17 @@ function UsersPage() {
     } catch (err) {
       setError(err.message || 'Failed to update user');
     }
+  }
+
+  function openRoleModal(user) {
+    setRoleModalUser(user);
+    setNextRole(user.role);
+  }
+
+  async function handleSubmitRoleUpdate() {
+    if (!roleModalUser) return;
+    await handleUpdateUser(roleModalUser.id, { role: nextRole });
+    setRoleModalUser(null);
   }
 
   return (
@@ -160,20 +173,7 @@ function UsersPage() {
                   <td>{user.full_name}</td>
                   <td>{user.username}</td>
                   <td>
-                    <select
-                      value={user.role}
-                      onChange={(event) =>
-                        handleUpdateUser(user.id, {
-                          role: event.target.value,
-                        })
-                      }
-                    >
-                      {roles.map((role) => (
-                        <option key={role} value={role}>
-                          {role}
-                        </option>
-                      ))}
-                    </select>
+                    <span className={`role-badge role-${user.role}`}>{user.role}</span>
                   </td>
                   <td>
                     <span className={user.is_active ? 'paid-text' : 'error-text'}>
@@ -181,6 +181,13 @@ function UsersPage() {
                     </span>
                   </td>
                   <td>
+                    <button
+                      type="button"
+                      className="secondary-btn"
+                      onClick={() => openRoleModal(user)}
+                    >
+                      Change Role
+                    </button>
                     <button
                       type="button"
                       className="secondary-btn"
@@ -198,6 +205,38 @@ function UsersPage() {
             </tbody>
           </table>
         </section>
+      ) : null}
+
+      {roleModalUser ? (
+        <div className="checkout-overlay" role="dialog" aria-modal="true" aria-label="Change role">
+          <button
+            type="button"
+            className="checkout-overlay-backdrop"
+            onClick={() => setRoleModalUser(null)}
+            aria-label="Close role dialog"
+          />
+          <div className="checkout-overlay-panel">
+            <section className="admin-form-card">
+              <h2>Change Role</h2>
+              <p className="muted-text">{roleModalUser.full_name} ({roleModalUser.username})</p>
+              <div className="user-role-modal-row">
+                <select value={nextRole} onChange={(event) => setNextRole(event.target.value)}>
+                  {roles.map((role) => (
+                    <option key={role} value={role}>
+                      {role}
+                    </option>
+                  ))}
+                </select>
+                <button type="button" className="primary-btn" onClick={handleSubmitRoleUpdate}>
+                  Save Role
+                </button>
+                <button type="button" className="secondary-btn" onClick={() => setRoleModalUser(null)}>
+                  Cancel
+                </button>
+              </div>
+            </section>
+          </div>
+        </div>
       ) : null}
     </main>
   );

@@ -4,10 +4,10 @@ import { formatCurrency } from '../../utils/formatCurrency';
 function BillingOrderCard({
   order,
   payment,
-  onGenerateBill,
   onPay,
-  generatingOrderId,
+  onPrint,
   payingOrderId,
+  printingOrderId,
 }) {
   const [paymentMethod, setPaymentMethod] = useState('cash');
 
@@ -16,8 +16,28 @@ function BillingOrderCard({
     0
   );
 
-  const isGenerating = generatingOrderId === order.id;
+  const mergedItems = (order.items || []).reduce((acc, item) => {
+    const key = String(item.menu_item_id || item.name || item.id);
+    const qty = Number(item.quantity || 0);
+    const unitPrice = Number(item.unit_price || 0);
+
+    if (!acc[key]) {
+      acc[key] = {
+        key,
+        name: item.name,
+        quantity: qty,
+        amount: unitPrice * qty,
+      };
+    } else {
+      acc[key].quantity += qty;
+      acc[key].amount += unitPrice * qty;
+    }
+
+    return acc;
+  }, {});
+
   const isPaying = payingOrderId === order.id;
+  const isPrinting = printingOrderId === order.id;
 
   return (
     <article className="billing-card">
@@ -30,12 +50,12 @@ function BillingOrderCard({
       </div>
 
       <ul className="billing-items-list">
-        {(order.items || []).map((item) => (
-          <li key={item.id}>
+        {Object.values(mergedItems).map((item) => (
+          <li key={item.key}>
             <span>
               {item.quantity} × {item.name}
             </span>
-            <strong>{formatCurrency(Number(item.unit_price) * Number(item.quantity))}</strong>
+            <strong>{formatCurrency(item.amount)}</strong>
           </li>
         ))}
       </ul>
@@ -52,7 +72,7 @@ function BillingOrderCard({
           </div>
           <div className="bill-total-row">
             <span>Total</span>
-            <strong>{formatCurrency(payment.total_amount)}</strong>
+            <strong className="bill-total-amount">{formatCurrency(payment.total_amount)}</strong>
           </div>
           <div>
             <span>Payment status</span>
@@ -71,15 +91,6 @@ function BillingOrderCard({
       )}
 
       <div className="billing-actions">
-        <button
-          type="button"
-          className="secondary-btn"
-          onClick={() => onGenerateBill(order.id)}
-          disabled={isGenerating || Boolean(payment)}
-        >
-          {payment ? 'Bill Generated' : isGenerating ? 'Generating...' : 'Generate Bill'}
-        </button>
-
         <select
           value={paymentMethod}
           onChange={(event) => setPaymentMethod(event.target.value)}
@@ -102,6 +113,15 @@ function BillingOrderCard({
             : isPaying
             ? 'Processing...'
             : 'Mark Paid'}
+        </button>
+
+        <button
+          type="button"
+          className="secondary-btn"
+          onClick={() => onPrint(order)}
+          disabled={isPrinting}
+        >
+          {isPrinting ? 'Preparing Print...' : 'Print Bill'}
         </button>
       </div>
     </article>

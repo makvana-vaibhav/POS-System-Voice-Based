@@ -14,6 +14,7 @@ function App() {
   const [activeView, setActiveView] = useState('orders');
   const [currentUser, setCurrentUser] = useState(null);
   const [initializing, setInitializing] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     async function bootstrapAuth() {
@@ -61,6 +62,7 @@ function App() {
 
     const allTabs = [
       { key: 'dashboard', label: 'Dashboard', roles: ['admin'] },
+      { key: 'analytics', label: 'Analytics', roles: ['admin'] },
       { key: 'menu', label: 'Menu', roles: ['admin'] },
       { key: 'tables', label: 'Admin - Tables', roles: ['admin', 'cashier', 'waiter'] },
       { key: 'users', label: 'Admin - Users', roles: ['admin'] },
@@ -93,7 +95,21 @@ function App() {
 
   return (
     <div className="app-root">
-      <aside className="sidebar">
+      <header className="mobile-topbar">
+        <button
+          type="button"
+          className="hamburger-btn"
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Open navigation"
+        >
+          ☰
+        </button>
+        <h2>POS System</h2>
+      </header>
+
+      {sidebarOpen ? <button type="button" className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} aria-label="Close navigation" /> : null}
+
+      <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
         <h2>POS System</h2>
         <p>
           {currentUser.full_name} ({currentUser.role})
@@ -103,21 +119,36 @@ function App() {
             <button
               key={tab.key}
               className={activeView === tab.key ? 'active' : ''}
-              onClick={() => setActiveView(tab.key)}
+              onClick={() => {
+                setActiveView(tab.key);
+                setSidebarOpen(false);
+              }}
             >
               {tab.label}
             </button>
           ))}
 
-          <button type="button" className="danger-btn" onClick={handleLogout}>
+          <button
+            type="button"
+            className="danger-btn"
+            onClick={() => {
+              setSidebarOpen(false);
+              handleLogout();
+            }}
+          >
             Logout
           </button>
         </nav>
       </aside>
 
-      {activeView === 'dashboard' ? <DashboardPage /> : null}
+      {activeView === 'dashboard' ? (
+        <DashboardPage onNavigate={setActiveView} viewMode="dashboard" />
+      ) : null}
+      {activeView === 'analytics' ? (
+        <DashboardPage onNavigate={setActiveView} viewMode="analytics" />
+      ) : null}
       {activeView === 'menu' ? <MenuPage /> : null}
-      {activeView === 'tables' ? <TablesPage /> : null}
+      {activeView === 'tables' ? <TablesPage onNavigate={setActiveView} /> : null}
       {activeView === 'users' ? <UsersPage /> : null}
       {activeView === 'orders' ? <OrdersPage /> : null}
       {activeView === 'kitchen' ? <KitchenPage /> : null}

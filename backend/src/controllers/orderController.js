@@ -89,8 +89,6 @@ const createOrder = async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    let order = null;
-
     if (table_id) {
       const tableResult = await client.query(
         'SELECT * FROM restaurant_tables WHERE id = $1',
@@ -100,52 +98,13 @@ const createOrder = async (req, res) => {
       if (!tableResult.rows.length) {
         throw new Error('Selected table not found');
       }
-
-      if (order_type === 'dine-in') {
-        const openOrderResult = await client.query(
-          `SELECT o.*
-           FROM orders o
-           LEFT JOIN payments p ON p.order_id = o.id
-           WHERE o.table_id = $1
-             AND o.order_type = 'dine-in'
-             AND o.status <> 'cancelled'
-             AND COALESCE(p.payment_status, 'pending') <> 'paid'
-           ORDER BY o.created_at DESC
-           LIMIT 1`,
-          [table_id]
-        );
-
-        if (openOrderResult.rows.length) {
-          order = openOrderResult.rows[0];
-        } else if (tableResult.rows[0].status === 'occupied') {
-          throw new Error('Selected table is already occupied');
-        }
-      }
     }
 
-    if (!order) {
-      const orderResult = await client.query(
-        `INSERT INTO orders (table_id, order_type, note) VALUES ($1, $2, $3) RETURNING *`,
-        [table_id, order_type, note]
-      );
-      order = orderResult.rows[0];
-    } else {
-      const noteValue = note && note.trim() ? note.trim() : null;
-      const updatedOrder = await client.query(
-        `UPDATE orders
-         SET status = 'pending',
-             note = CASE
-               WHEN $1::text IS NULL THEN note
-               WHEN note IS NULL OR note = '' THEN $1
-               ELSE CONCAT(note, E'\n', $1::text)
-             END,
-             updated_at = NOW()
-         WHERE id = $2
-         RETURNING *`,
-        [noteValue, order.id]
-      );
-      order = updatedOrder.rows[0] || order;
-    }
+    const orderResult = await client.query(
+      `INSERT INTO orders (table_id, order_type, note) VALUES ($1, $2, $3) RETURNING *`,
+      [table_id, order_type, note]
+    );
+    const order = orderResult.rows[0];
 
     // Add items
     for (const item of items) {
@@ -201,9 +160,7 @@ const createOrder = async (req, res) => {
     res.status(201).json({ success: true, data: order });
   } catch (err) {
     await client.query('ROLLBACK');
-    const statusCode = err.message.includes('not found') || err.message.includes('occupied')
-      ? 400
-      : 500;
+    const statusCode = err.message.includes('not found') ? 400 : 500;
     res.status(statusCode).json({ success: false, message: err.message });
   } finally {
     client.release();

@@ -2,6 +2,31 @@ const pool = require('../config/db');
 
 const TAX_RATE = parseFloat(process.env.TAX_RATE || '5');
 
+function normalizeTaxRate(inputRate) {
+  const parsedRate = Number(inputRate);
+  if (!Number.isFinite(parsedRate)) {
+    return TAX_RATE;
+  }
+  if (parsedRate < 0 || parsedRate > 100) {
+    throw new Error('tax_rate must be between 0 and 100');
+  }
+  return Number(parsedRate.toFixed(2));
+}
+
+function computePaymentTotals(subtotal, taxRate) {
+  const normalizedSubtotal = Number(subtotal || 0);
+  const normalizedTaxRate = Number(taxRate || 0);
+  const taxAmount = Number(((normalizedSubtotal * normalizedTaxRate) / 100).toFixed(2));
+  const totalAmount = Number((normalizedSubtotal + taxAmount).toFixed(2));
+
+  return {
+    subtotal: Number(normalizedSubtotal.toFixed(2)),
+    taxRate: normalizedTaxRate,
+    taxAmount,
+    totalAmount,
+  };
+}
+
 // GET /api/payments/order/:orderId
 const getPaymentByOrderId = async (req, res) => {
   try {
@@ -70,29 +95,60 @@ const getActiveBills = async (req, res) => {
 const generateBill = async (req, res) => {
   const { orderId } = req.params;
   try {
-    // Check if bill already exists
-    const existing = await pool.query('SELECT * FROM payments WHERE order_id = $1', [orderId]);
-    if (existing.rows.length) {
-      return res.json({ success: true, data: existing.rows[0] });
-    }
+    const requestedTaxRate = normalizeTaxRate(req.body?.tax_rate);
 
     // Calculate subtotal from order items
     const itemsResult = await pool.query(
       'SELECT SUM(quantity * unit_price) AS subtotal FROM order_items WHERE order_id = $1',
       [orderId]
     );
-    const subtotal = parseFloat(itemsResult.rows[0].subtotal || 0);
-    const tax_amount = parseFloat((subtotal * TAX_RATE) / 100).toFixed(2);
-    const total_amount = parseFloat(subtotal + parseFloat(tax_amount)).toFixed(2);
+    const subtotal = Number(itemsResult.rows[0].subtotal || 0);
+    const totals = computePaymentTotals(subtotal, requestedTaxRate);
+
+    // Check if bill already exists
+    const existing = await pool.query('SELECT * FROM payments WHERE order_id = $1', [orderId]);
+    if (existing.rows.length) {
+      const existingBill = existing.rows[0];
+
+      if (existingBill.payment_status === 'paid') {
+        return res.json({ success: true, data: existingBill });
+      }
+
+      const updated = await pool.query(
+        `UPDATE payments
+         SET subtotal = $1,
+             tax_rate = $2,
+             tax_amount = $3,
+             total_amount = $4
+         WHERE id = $5
+         RETURNING *`,
+        [
+          totals.subtotal.toFixed(2),
+          totals.taxRate.toFixed(2),
+          totals.taxAmount.toFixed(2),
+          totals.totalAmount.toFixed(2),
+          existingBill.id,
+        ]
+      );
+
+      return res.json({ success: true, data: updated.rows[0] });
+    }
 
     const result = await pool.query(
       `INSERT INTO payments (order_id, subtotal, tax_rate, tax_amount, total_amount)
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [orderId, subtotal.toFixed(2), TAX_RATE, tax_amount, total_amount]
+      [
+        orderId,
+        totals.subtotal.toFixed(2),
+        totals.taxRate.toFixed(2),
+        totals.taxAmount.toFixed(2),
+        totals.totalAmount.toFixed(2),
+      ]
     );
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    const statusCode = err.message.includes('tax_rate') ? 400 : 500;
+    res.status(statusCode).json({ success: false, message: err.message });
   }
 };
 
@@ -102,7 +158,35 @@ const processPayment = async (req, res) => {
   const { orderId } = req.params;
   const client = await pool.connect();
   try {
+    const requestedTaxRate = normalizeTaxRate(req.body?.tax_rate);
+
     await client.query('BEGIN');
+
+    const itemsTotalResult = await client.query(
+      'SELECT COALESCE(SUM(quantity * unit_price), 0) AS subtotal FROM order_items WHERE order_id = $1',
+      [orderId]
+    );
+    const subtotal = Number(itemsTotalResult.rows[0].subtotal || 0);
+    const totals = computePaymentTotals(subtotal, requestedTaxRate);
+
+    await client.query(
+      `INSERT INTO payments (order_id, subtotal, tax_rate, tax_amount, total_amount, payment_status)
+       VALUES ($1, $2, $3, $4, $5, 'pending')
+       ON CONFLICT (order_id)
+       DO UPDATE SET
+         subtotal = EXCLUDED.subtotal,
+         tax_rate = EXCLUDED.tax_rate,
+         tax_amount = EXCLUDED.tax_amount,
+         total_amount = EXCLUDED.total_amount
+       WHERE payments.payment_status <> 'paid'`,
+      [
+        orderId,
+        totals.subtotal.toFixed(2),
+        totals.taxRate.toFixed(2),
+        totals.taxAmount.toFixed(2),
+        totals.totalAmount.toFixed(2),
+      ]
+    );
 
     const result = await client.query(
       `UPDATE payments
@@ -125,14 +209,30 @@ const processPayment = async (req, res) => {
     );
 
     if (orderResult.rows.length && orderResult.rows[0].table_id) {
-      await client.query("UPDATE restaurant_tables SET status = 'available' WHERE id = $1", [orderResult.rows[0].table_id]);
+      const tableId = orderResult.rows[0].table_id;
+      const unpaidOrders = await client.query(
+        `SELECT 1
+         FROM orders o
+         LEFT JOIN payments p ON p.order_id = o.id
+         WHERE o.table_id = $1
+           AND o.order_type = 'dine-in'
+           AND o.status <> 'cancelled'
+           AND COALESCE(p.payment_status, 'pending') <> 'paid'
+         LIMIT 1`,
+        [tableId]
+      );
+
+      if (!unpaidOrders.rows.length) {
+        await client.query("UPDATE restaurant_tables SET status = 'available' WHERE id = $1", [tableId]);
+      }
     }
 
     await client.query('COMMIT');
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     await client.query('ROLLBACK');
-    res.status(500).json({ success: false, message: err.message });
+    const statusCode = err.message.includes('tax_rate') ? 400 : 500;
+    res.status(statusCode).json({ success: false, message: err.message });
   } finally {
     client.release();
   }

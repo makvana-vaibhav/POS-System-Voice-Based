@@ -18,6 +18,24 @@ function OrdersPage() {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
+  function getDefaultTableId(tableRows) {
+    if (!Array.isArray(tableRows) || !tableRows.length) {
+      return '';
+    }
+
+    const sortedTables = [...tableRows].sort(
+      (a, b) => Number(a.table_number || 0) - Number(b.table_number || 0)
+    );
+
+    const tableOne = sortedTables.find((table) => Number(table.table_number) === 1);
+    if (tableOne && tableOne.status === 'available') {
+      return String(tableOne.id);
+    }
+
+    const firstAvailable = sortedTables.find((table) => table.status === 'available');
+    return firstAvailable ? String(firstAvailable.id) : '';
+  }
+
   async function loadOrderData() {
     try {
       setLoading(true);
@@ -37,6 +55,8 @@ function OrdersPage() {
       if (preferredTableId && tableRows.some((table) => String(table.id) === String(preferredTableId))) {
         setSelectedTableId(String(preferredTableId));
         localStorage.removeItem('pos_selected_table_id');
+      } else if (!selectedTableId && orderType === 'dine-in') {
+        setSelectedTableId(getDefaultTableId(tableRows));
       }
     } catch (err) {
       setError(err.message || 'Failed to load order data');
@@ -48,6 +68,7 @@ function OrdersPage() {
   async function loadExistingOrderForTable(tableId) {
     if (!tableId) {
       setExistingOrderItems([]);
+      setCartItems([]);
       return;
     }
 
@@ -63,13 +84,39 @@ function OrdersPage() {
       );
 
       if (tableOrders.length > 0) {
-        const currentOrder = tableOrders[0];
-        setExistingOrderItems(currentOrder.items || []);
+        const allExistingItems = [];
+        tableOrders.forEach((order) => {
+          if (order.items && Array.isArray(order.items)) {
+            allExistingItems.push(...order.items);
+          }
+        });
+
+        const aggregatedByMenuItem = new Map();
+        allExistingItems.forEach((item) => {
+          const key = Number(item.menu_item_id);
+          const current = aggregatedByMenuItem.get(key);
+          if (current) {
+            current.quantity += Number(item.quantity);
+            return;
+          }
+          aggregatedByMenuItem.set(key, {
+            id: key,
+            name: item.name,
+            price: Number(item.unit_price),
+            quantity: Number(item.quantity),
+          });
+        });
+
+        const aggregatedItems = Array.from(aggregatedByMenuItem.values());
+        setExistingOrderItems(aggregatedItems);
+        setCartItems(aggregatedItems);
       } else {
         setExistingOrderItems([]);
+        setCartItems([]);
       }
     } catch (err) {
       setExistingOrderItems([]);
+      setCartItems([]);
     }
   }
 
@@ -153,14 +200,44 @@ function OrdersPage() {
       setError('');
       setSuccessMessage('');
 
+      const existingQtyByMenuItemId = new Map();
+      existingOrderItems.forEach((item) => {
+        const menuItemId = Number(item.id ?? item.menu_item_id);
+        const quantity = Number(item.quantity || 0);
+        existingQtyByMenuItemId.set(
+          menuItemId,
+          (existingQtyByMenuItemId.get(menuItemId) || 0) + quantity
+        );
+      });
+
+      const itemsToSubmit = cartItems
+        .map((item) => {
+          const menuItemId = Number(item.id);
+          const currentQty = Number(item.quantity || 0);
+          const existingQty = Number(existingQtyByMenuItemId.get(menuItemId) || 0);
+          const additionalQty = currentQty - existingQty;
+
+          if (additionalQty <= 0) {
+            return null;
+          }
+
+          return {
+            menu_item_id: menuItemId,
+            quantity: additionalQty,
+          };
+        })
+        .filter(Boolean);
+
+      if (!itemsToSubmit.length) {
+        setError('Please add new items before placing reorder.');
+        return;
+      }
+
       const payload = {
         order_type: orderType,
         table_id: orderType === 'dine-in' ? Number(selectedTableId) : null,
         note: note.trim(),
-        items: cartItems.map((item) => ({
-          menu_item_id: item.id,
-          quantity: item.quantity,
-        })),
+        items: itemsToSubmit,
       };
 
       const response = await orderApi.createOrder(payload);
@@ -213,6 +290,7 @@ function OrdersPage() {
                   {selectableTables.map((table) => (
                     <option key={table.id} value={table.id}>
                       Table {table.table_number}
+                      {table.status === 'occupied' ? ' (occupied)' : ''}
                     </option>
                   ))}
                 </select>
@@ -263,7 +341,6 @@ function OrdersPage() {
           note={note}
           cartItems={cartItems}
           subtotal={subtotal}
-          existingOrderItems={existingOrderItems}
           onNoteChange={setNote}
           onIncrease={(itemId) => updateQuantity(itemId, 1)}
           onDecrease={(itemId) => updateQuantity(itemId, -1)}

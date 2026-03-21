@@ -126,14 +126,6 @@ function MenuItemCard({
       tabIndex={canClickWholeCard ? 0 : undefined}
       aria-label={canClickWholeCard ? `Add ${item.name} to bill` : undefined}
     >
-      <div className="menu-item-visual" aria-hidden="true">
-        {item.image_url ? (
-          <img src={item.image_url} alt={item.name} />
-        ) : (
-          <span>{(item.name || '?').slice(0, 1).toUpperCase()}</span>
-        )}
-      </div>
-
       <div className="menu-item-header">
         <h3>{item.name}</h3>
         <span className="menu-price">{formatCurrency(item.price)}</span>

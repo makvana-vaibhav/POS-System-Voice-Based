@@ -13,7 +13,6 @@ function OrderCart({
   onSubmit,
   canPlaceOrder,
   submitting,
-  existingOrderItems = [],
 }) {
   const showTableWarning = orderType === 'dine-in' && !selectedTableId;
   const showItemWarning = cartItems.length === 0;
@@ -36,17 +35,6 @@ function OrderCart({
       </label>
 
       <div className="cart-items-list">
-        {existingOrderItems.length ? (
-          <>
-            <p className="muted-text" style={{ fontSize: '12px', marginBottom: '8px' }}>Current order items:</p>
-            {existingOrderItems.map((item) => (
-              <div key={`existing-${item.id}`} className="cart-item-row" style={{ opacity: 0.7 }}>
-                <strong className="cart-item-name">{item.quantity} × {item.name}</strong>
-              </div>
-            ))}
-            {cartItems.length ? <hr style={{ margin: '8px 0' }} /> : null}
-          </>
-        ) : null}
         {cartItems.length ? (
           cartItems.map((item) => (
             <div key={item.id} className="cart-item-row">

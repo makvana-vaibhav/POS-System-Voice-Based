@@ -148,14 +148,21 @@ export const orderApi = {
 export const paymentApi = {
   getPaymentByOrderId: (orderId) => request(`/payments/order/${orderId}`),
   getActiveBills: () => request('/payments/active-bills'),
-  generateBill: (orderId) =>
+  generateBill: (orderId, tax_rate) =>
     request(`/payments/order/${orderId}/bill`, {
       method: 'POST',
+      body: JSON.stringify(
+        typeof tax_rate === 'number' ? { tax_rate } : {}
+      ),
     }),
-  processPayment: (orderId, payment_method) =>
+  processPayment: (orderId, payment_method, tax_rate) =>
     request(`/payments/order/${orderId}/pay`, {
       method: 'POST',
-      body: JSON.stringify({ payment_method }),
+      body: JSON.stringify(
+        typeof tax_rate === 'number'
+          ? { payment_method, tax_rate }
+          : { payment_method }
+      ),
     }),
 };
 

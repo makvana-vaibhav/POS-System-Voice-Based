@@ -5,13 +5,13 @@ import { printReceipt } from '../utils/printReceipt';
 
 function BillingPage() {
   const [orders, setOrders] = useState([]);
-  const [paymentsByOrderId, setPaymentsByOrderId] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [payingOrderId, setPayingOrderId] = useState(null);
   const [printingOrderId, setPrintingOrderId] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [gstRate, setGstRate] = useState(18);
 
   async function loadBillingData() {
     try {
@@ -22,12 +22,6 @@ function BillingPage() {
       const activeRows = activeBillsResponse.data || [];
 
       setOrders(activeRows);
-      setPaymentsByOrderId(
-        activeRows.reduce((acc, row) => {
-          acc[row.id] = row.payment || null;
-          return acc;
-        }, {})
-      );
     } catch (err) {
       setError(err.message || 'Failed to load billing data');
     } finally {
@@ -39,28 +33,147 @@ function BillingPage() {
     loadBillingData();
   }, []);
 
-  const filteredOrders = useMemo(() => {
-    if (statusFilter === 'all') {
-      return orders;
-    }
-    return orders.filter((order) => order.status === statusFilter);
-  }, [orders, statusFilter]);
+  const bills = useMemo(() => {
+    const statusPriority = {
+      pending: 1,
+      preparing: 2,
+      ready: 3,
+      served: 4,
+    };
 
-  async function handleMarkPaid(orderId, paymentMethod) {
+    const mergedByTableId = new Map();
+    const standaloneTakeaways = [];
+
+    orders.forEach((order) => {
+      if (order.table_id) {
+        const tableKey = Number(order.table_id);
+        const existing = mergedByTableId.get(tableKey) || {
+          id: `table-${tableKey}`,
+          table_id: tableKey,
+          table_number: order.table_number,
+          title: `Table ${order.table_number} Bill`,
+          subtitle: `Table ${order.table_number}`,
+          status: order.status,
+          statusRank: statusPriority[order.status] || 999,
+          created_at: order.created_at,
+          order_type: 'dine-in',
+          orders: [],
+          items: [],
+        };
+
+        existing.orders.push(order);
+
+        const nextRank = statusPriority[order.status] || 999;
+        if (nextRank < existing.statusRank) {
+          existing.status = order.status;
+          existing.statusRank = nextRank;
+        }
+
+        if (new Date(order.created_at).getTime() < new Date(existing.created_at).getTime()) {
+          existing.created_at = order.created_at;
+        }
+
+        mergedByTableId.set(tableKey, existing);
+        return;
+      }
+
+      standaloneTakeaways.push({
+        id: `takeaway-${order.id}`,
+        table_id: null,
+        table_number: null,
+        title: `Order #${order.id}`,
+        subtitle: 'Takeaway',
+        status: order.status,
+        statusRank: statusPriority[order.status] || 999,
+        created_at: order.created_at,
+        order_type: order.order_type,
+        orders: [order],
+        items: [],
+      });
+    });
+
+    const normalizeItems = (bill) => {
+      const mergedItems = {};
+
+      bill.orders.forEach((sourceOrder) => {
+        (sourceOrder.items || []).forEach((item) => {
+          const key = String(item.menu_item_id || item.name || item.id);
+          const qty = Number(item.quantity || 0);
+          const unitPrice = Number(item.unit_price || 0);
+
+          if (!mergedItems[key]) {
+            mergedItems[key] = {
+              key,
+              id: Number(item.menu_item_id || item.id || 0),
+              name: item.name,
+              quantity: qty,
+              unit_price: unitPrice,
+              amount: unitPrice * qty,
+            };
+          } else {
+            mergedItems[key].quantity += qty;
+            mergedItems[key].amount += unitPrice * qty;
+          }
+        });
+      });
+
+      const items = Object.values(mergedItems);
+      const subtotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const taxAmount = Number(((subtotal * Number(gstRate || 0)) / 100).toFixed(2));
+      const totalAmount = Number((subtotal + taxAmount).toFixed(2));
+
+      return {
+        ...bill,
+        orderRefs: bill.orders.map((row) => `#${row.id}`),
+        items,
+        subtotal,
+        taxAmount,
+        totalAmount,
+      };
+    };
+
+    const groupedBills = Array.from(mergedByTableId.values()).map(normalizeItems);
+    const takeawayBills = standaloneTakeaways.map(normalizeItems);
+
+    const allBills = [...groupedBills, ...takeawayBills];
+
+    const scopedBills =
+      statusFilter === 'all'
+        ? allBills
+        : allBills.filter((bill) => bill.orders.some((order) => order.status === statusFilter));
+
+    return scopedBills.sort((a, b) => {
+      const aTime = new Date(a.created_at).getTime();
+      const bTime = new Date(b.created_at).getTime();
+      if (aTime === bTime) {
+        return String(a.id).localeCompare(String(b.id));
+      }
+      return aTime - bTime;
+    });
+  }, [orders, statusFilter, gstRate]);
+
+  async function handleMarkPaid(billId, paymentMethod) {
     try {
-      setPayingOrderId(orderId);
+      const bill = bills.find((row) => row.id === billId);
+      if (!bill) {
+        setError('Selected bill not found. Please refresh.');
+        return;
+      }
+
+      setPayingOrderId(billId);
       setError('');
       setSuccessMessage('');
 
-      if (!paymentsByOrderId[orderId]) {
-        const billResponse = await paymentApi.generateBill(orderId);
-        setPaymentsByOrderId((prev) => ({ ...prev, [orderId]: billResponse.data }));
+      for (const order of bill.orders) {
+        await paymentApi.generateBill(order.id, Number(gstRate));
+        await paymentApi.processPayment(order.id, paymentMethod, Number(gstRate));
       }
 
-      const payResponse = await paymentApi.processPayment(orderId, paymentMethod);
-      setPaymentsByOrderId((prev) => ({ ...prev, [orderId]: payResponse.data }));
-
-      setSuccessMessage(`Payment completed for order #${orderId}.`);
+      setSuccessMessage(
+        bill.table_number
+          ? `Payment completed for Table ${bill.table_number}.`
+          : `Payment completed for ${bill.title}.`
+      );
       await loadBillingData();
     } catch (err) {
       setError(err.message || 'Failed to process payment');
@@ -69,21 +182,26 @@ function BillingPage() {
     }
   }
 
-  async function handlePrintBill(order) {
+  async function handlePrintBill(bill) {
     try {
-      setPrintingOrderId(order.id);
+      setPrintingOrderId(bill.id);
       setError('');
 
-      let payment = paymentsByOrderId[order.id];
-      if (!payment) {
-        const billResponse = await paymentApi.generateBill(order.id);
-        payment = billResponse.data;
-        setPaymentsByOrderId((prev) => ({ ...prev, [order.id]: payment }));
-      }
-
       printReceipt({
-        order,
-        payment,
+        order: {
+          id: bill.table_number ? `T${bill.table_number}` : bill.orderRefs.join(', '),
+          order_type: bill.order_type,
+          table_number: bill.table_number,
+          items: bill.items,
+        },
+        payment: {
+          subtotal: bill.subtotal,
+          tax_rate: Number(gstRate),
+          tax_amount: bill.taxAmount,
+          total_amount: bill.totalAmount,
+          payment_status: 'pending',
+          payment_method: '-',
+        },
         restaurantName: 'AI POS Restaurant',
         restaurantAddress: 'Main Branch',
         restaurantPhone: '+91-0000000000',
@@ -136,9 +254,24 @@ function BillingPage() {
           </button>
         </div>
 
-        <button type="button" className="secondary-btn" onClick={loadBillingData}>
-          Refresh
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#334155' }}>
+            <span>GST %</span>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              value={gstRate}
+              onChange={(event) => setGstRate(event.target.value === '' ? '' : Number(event.target.value))}
+              style={{ width: '90px' }}
+            />
+          </label>
+
+          <button type="button" className="secondary-btn" onClick={loadBillingData}>
+            Refresh
+          </button>
+        </div>
       </section>
 
       {loading ? <p className="info-text">Loading billing data...</p> : null}
@@ -147,12 +280,12 @@ function BillingPage() {
 
       {!loading ? (
         <section className="billing-grid">
-          {filteredOrders.length ? (
-            filteredOrders.map((order) => (
+          {bills.length ? (
+            bills.map((bill) => (
               <BillingOrderCard
-                key={order.id}
-                order={order}
-                payment={paymentsByOrderId[order.id]}
+                key={bill.id}
+                bill={bill}
+                gstRate={Number(gstRate || 0)}
                 onPay={handleMarkPaid}
                 onPrint={handlePrintBill}
                 payingOrderId={payingOrderId}
